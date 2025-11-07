@@ -293,6 +293,40 @@
       position: relative;
     }
 
+    .overflow-indicator {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 18px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      font-family: var(--ui-font);
+      justify-content: center;
+    }
+
+    .overflow-indicator::before,
+    .overflow-indicator::after {
+      content: '';
+      flex: 1;
+      border-top: 2px dashed rgba(220,38,38,0.85);
+    }
+
+    .overflow-indicator span {
+      pointer-events: auto;
+      background: rgba(220,38,38,0.9);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      box-shadow: 0 2px 6px rgba(220,38,38,0.25);
+    }
+
+    .page-body[data-overflow="true"] .overflow-indicator {
+      display: flex;
+    }
+
     .page-footer {
       padding: 6px 10px;
       font-size: 10px;
@@ -387,8 +421,14 @@
       user-select: none;
     }
 
-    [data-deletable="true"]:hover > .delete-icon {
+    [data-deletable="true"]:hover > .delete-icon,
+    .delete-icon:focus {
       display: block;
+    }
+
+    .delete-icon:focus-visible {
+      outline: 2px solid #f97316;
+      outline-offset: 2px;
     }
 
     /* Typographic scale */
@@ -425,9 +465,10 @@
     }
 
     .footnote-ref {
-      font-size: 9px;
+      font-size: 10px;
       vertical-align: super;
       cursor: pointer;
+      color: var(--accent-primary);
     }
 
     a {
@@ -715,6 +756,13 @@
     .image-size-m img { max-width: 65%; }
     .image-size-l img { max-width: 100%; }
 
+    .image-caption {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted-text);
+      text-align: center;
+    }
+
     /* Footnotes page */
     .footnotes-page .page-body {
       padding-top: 18px;
@@ -725,13 +773,48 @@
     }
 
     #footnote-list {
-      font-size: 9px;
+      font-size: 11px;
       margin-top: 4px;
       padding-left: 16px;
     }
 
     #footnote-list li {
       margin: 2px 0;
+      line-height: 1.5;
+    }
+
+    .footnote-target {
+      display: inline;
+    }
+
+    .footnote-target .footnote-ref {
+      margin-left: 2px;
+    }
+
+    .footnote-return {
+      margin-left: 6px;
+      border: none;
+      background: none;
+      color: var(--accent-primary);
+      cursor: pointer;
+      font-size: 10px;
+      padding: 0 4px;
+    }
+
+    .footnote-return:focus-visible,
+    .footnote-return:hover {
+      color: var(--accent-secondary);
+      outline: 1px solid var(--accent-primary);
+      outline-offset: 1px;
+    }
+
+    .footnote-highlight {
+      animation: footnoteFlash 1.2s ease-in-out;
+    }
+
+    @keyframes footnoteFlash {
+      0% { background: rgba(59,130,246,0.25); }
+      100% { background: transparent; }
     }
 
     /* Floating block actions menu */
@@ -1014,42 +1097,53 @@
 
     <div class="toolbar-group">
       <span class="toolbar-label">Pages</span>
-      <button class="toolbar-btn primary" data-add-page><span class="toolbar-btn-icon">＋</span>Page</button>
-      <button class="toolbar-btn" data-add-footnote>+ Footnote</button>
+      <button class="toolbar-btn primary" data-add-page aria-label="Add page"><span class="toolbar-btn-icon">＋</span>Page</button>
+      <button class="toolbar-btn" data-add-footnote aria-label="Add footnote">+ Footnote</button>
     </div>
 
     <div class="toolbar-group">
       <span class="toolbar-label">Insert block</span>
-      <button class="toolbar-btn" data-add="section">Section</button>
-      <button class="toolbar-btn" data-add="text">Text</button>
-      <button class="toolbar-btn" data-add="cta">Info box</button>
-      <button class="toolbar-btn" data-add="steps">Steps</button>
-      <button class="toolbar-btn" data-add="faq">FAQ</button>
-      <button class="toolbar-btn" data-add="quote">Quote</button>
-      <button class="toolbar-btn" data-add="divider">Divider</button>
-      <button class="toolbar-btn" data-add="citation">Citation</button>
-      <button class="toolbar-btn" data-add="table-glance">At-a-glance</button>
-      <button class="toolbar-btn" data-add="table-bai">Before/After/Impact</button>
-      <button class="toolbar-btn" data-add="table-custom">Custom table</button>
-      <button class="toolbar-btn" data-add="image">Image</button>
+      <button class="toolbar-btn" data-add="section" aria-label="Insert section">Section</button>
+      <button class="toolbar-btn" data-add="text" aria-label="Insert text block">Text</button>
+      <button class="toolbar-btn" data-add="cta" aria-label="Insert info box">Info box</button>
+      <button class="toolbar-btn" data-add="steps" aria-label="Insert steps block">Steps</button>
+      <button class="toolbar-btn" data-add="faq" aria-label="Insert FAQ block">FAQ</button>
+      <button class="toolbar-btn" data-add="quote" aria-label="Insert quote block">Quote</button>
+      <button class="toolbar-btn" data-add="divider" aria-label="Insert divider">Divider</button>
+      <button class="toolbar-btn" data-add="citation" aria-label="Insert citation">Citation</button>
+      <button class="toolbar-btn" data-add="table-glance" aria-label="Insert at-a-glance table">At-a-glance</button>
+      <button class="toolbar-btn" data-add="table-bai" aria-label="Insert before after impact table">Before/After/Impact</button>
+      <button class="toolbar-btn" data-add="table-custom" aria-label="Insert custom table">Custom table</button>
+      <button class="toolbar-btn" data-add="image" aria-label="Insert image">Image</button>
+    </div>
+
+    <div class="toolbar-group">
+      <span class="toolbar-label">Layouts</span>
+      <button class="toolbar-btn" data-template="iga-brief" aria-label="Use IGA executive brief template">IGA Brief</button>
+      <button class="toolbar-btn" data-template="ft-explainer" aria-label="Use FT-style explainer template">FT Explainer</button>
     </div>
 
     <div class="toolbar-group">
       <span class="toolbar-label">Theme</span>
-      <select id="theme-select">
+      <select id="theme-select" aria-label="Select theme">
         <option value="iga">IGA</option>
         <option value="ft">FT-style</option>
       </select>
-      <button class="toolbar-btn" id="toggle-overlay">Grid</button>
+      <button class="toolbar-btn" id="toggle-overlay" aria-label="Toggle layout grid">Grid</button>
     </div>
 
     <div class="toolbar-group">
       <span class="toolbar-label">Edit</span>
-      <button class="toolbar-btn" id="undo-btn">Undo</button>
-      <button class="toolbar-btn" id="redo-btn">Redo</button>
-      <button class="toolbar-btn" id="export-json">Export JSON</button>
-      <button class="toolbar-btn" id="import-json">Import JSON</button>
-      <button class="toolbar-btn" id="print-btn">Print / PDF</button>
+      <button class="toolbar-btn" id="undo-btn" aria-label="Undo">Undo</button>
+      <button class="toolbar-btn" id="redo-btn" aria-label="Redo">Redo</button>
+      <button class="toolbar-btn" id="quality-check-btn" aria-label="Check brief for placeholders" title="Check brief for placeholders">Check brief</button>
+      <button class="toolbar-btn" id="export-json" aria-label="Export JSON">Export JSON</button>
+      <button class="toolbar-btn" id="import-json" aria-label="Import JSON">Import JSON</button>
+      <button class="toolbar-btn" id="print-btn" aria-label="Print or save as PDF">Print / PDF</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="toolbar-btn" id="help-btn" aria-label="Show help" title="Show help">?</button>
     </div>
   </header>
 
@@ -1058,29 +1152,32 @@
       <!-- Initial content page -->
       <div class="page-container" data-page-type="content">
         <div class="page-controls">
-          <button class="page-control-btn" data-move-page-up title="Move page up">↑</button>
-          <button class="page-control-btn" data-move-page-down title="Move page down">↓</button>
-          <button class="page-control-btn" data-dup-page title="Duplicate page">⧉</button>
-          <button class="page-control-btn" data-del-page title="Delete page">✕</button>
+          <button class="page-control-btn" data-move-page-up title="Move page up" aria-label="Move page up">↑</button>
+          <button class="page-control-btn" data-move-page-down title="Move page down" aria-label="Move page down">↓</button>
+          <button class="page-control-btn" data-dup-page title="Duplicate page" aria-label="Duplicate page">⧉</button>
+          <button class="page-control-btn" data-del-page title="Delete page" aria-label="Delete page">✕</button>
         </div>
         <div class="page-overlay"></div>
         <div class="page-body">
           <div class="doc-title" data-deletable="true" contenteditable="true">
             Executive Brief Title
-            <span class="delete-icon" contenteditable="false">×</span>
+            <span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>
           </div>
           <p class="doc-subtitle body-text" data-deletable="true" contenteditable="true">
             Short positioning subtitle / context line.
-            <span class="delete-icon" contenteditable="false">×</span>
+            <span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>
           </p>
           <h3 class="section-heading" data-deletable="true">
             <span contenteditable="true">Key messages</span>
-            <span class="delete-icon" contenteditable="false">×</span>
+            <span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>
           </h3>
           <p class="body-text" data-deletable="true" contenteditable="true">
             Use this space to summarise the essentials in clear, direct language aligned with IGA style.
-            <span class="delete-icon" contenteditable="false">×</span>
+            <span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>
           </p>
+          <div class="overflow-indicator" aria-hidden="true">
+            <span title="Consider splitting page" aria-label="Consider splitting page">!</span>
+          </div>
         </div>
         <div class="page-footer">Page 1</div>
       </div>
@@ -1102,13 +1199,14 @@
 
 <!-- Floating block actions menu -->
 <div id="block-actions" class="floating-menu">
-  <button data-action="move-up" title="Move block up">↑</button>
-  <button data-action="move-down" title="Move block down">↓</button>
-  <button data-action="duplicate" title="Duplicate block(s)">⧉</button>
-  <button data-action="copy" title="Copy block(s)">⧄</button>
-  <button data-action="cut" title="Cut block(s)">✂</button>
-  <button data-action="paste" title="Paste after selection">⧠</button>
-  <button data-action="delete" title="Delete block(s)">✕</button>
+  <button data-action="move-up" title="Move block up" aria-label="Move block up">↑</button>
+  <button data-action="move-down" title="Move block down" aria-label="Move block down">↓</button>
+  <button data-action="duplicate" title="Duplicate block(s)" aria-label="Duplicate blocks">⧉</button>
+  <button data-action="copy" title="Copy block(s)" aria-label="Copy blocks">⧄</button>
+  <button data-action="cut" title="Cut block(s)" aria-label="Cut blocks">✂</button>
+  <button data-action="paste" title="Paste after selection" aria-label="Paste blocks">⧠</button>
+  <button data-action="move-to-page" title="Move selection to new page" aria-label="Move selection to new page">⇢</button>
+  <button data-action="delete" title="Delete block(s)" aria-label="Delete blocks">✕</button>
 </div>
 
 <!-- Floating text formatting toolbar -->
@@ -1150,6 +1248,25 @@
   const modalInner = document.getElementById('modal-inner');
   const jsonInput = document.getElementById('json-file-input');
 
+  const DELETE_ICON_HTML = '<span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>';
+  const DRAFT_STORAGE_KEY = 'igaEbdDraft';
+  const QUALITY_PLACEHOLDERS = [
+    'New paragraph…',
+    'Step 1…',
+    'Step 2…',
+    'Step 3…',
+    'Q: …',
+    'A: …',
+    'Current state…',
+    'Target state…',
+    'Outcome / benefit…',
+    'Who this is for…',
+    'What we need them to do…',
+    'Key dates…',
+    'Add an explanatory caption…',
+    'Your footnote text here.'
+  ];
+
   const INTERNAL_MARKER_START = '<!--EBD_INTERNAL_START-->';
   const INTERNAL_MARKER_END = '<!--EBD_INTERNAL_END-->';
 
@@ -1164,6 +1281,51 @@
 
   // For column resizing
   let tableResizeState = null;
+
+  function persistDraft(serialized) {
+    try {
+      localStorage.setItem(DRAFT_STORAGE_KEY, serialized);
+    } catch (err) {
+      /* noop */
+    }
+  }
+
+  function loadDraft() {
+    try {
+      return localStorage.getItem(DRAFT_STORAGE_KEY);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch (err) {
+      /* noop */
+    }
+  }
+
+  function promptRestoreDraft() {
+    const saved = loadDraft();
+    if (!saved) return;
+    if (lastSerialized && saved === lastSerialized) return;
+    openModal({
+      title: 'Restore draft?',
+      body: '<p>We found a saved draft from your last session. Restore it?</p>',
+      confirmLabel: 'Restore',
+      cancelLabel: 'Discard',
+      onConfirm: () => {
+        closeModal();
+        applyState(saved);
+        showSnackbar('Draft restored');
+      },
+      onCancel: () => {
+        clearDraft();
+        closeModal();
+      }
+    });
+  }
 
   function getCurrentTheme() {
     return document.body.classList.contains('theme-ft') ? 'ft' : 'iga';
@@ -1285,6 +1447,34 @@
     return JSON.stringify({ theme, html });
   }
 
+  function checkPageOverflowState(pageBody) {
+    if (!pageBody) return;
+    const indicator = pageBody.querySelector('.overflow-indicator');
+    if (!indicator) return;
+    const contentHeight = pageBody.scrollHeight;
+    const visibleHeight = pageBody.clientHeight;
+    const delta = contentHeight - visibleHeight;
+    const buffer = 48;
+    const warn = delta > -buffer;
+    if (warn) {
+      pageBody.dataset.overflow = 'true';
+      const pill = indicator.querySelector('span');
+      if (pill) {
+        const message = delta > 0
+          ? 'Content exceeds page height. Consider splitting page.'
+          : 'Content nearing page limit. Consider splitting page.';
+        pill.title = message;
+        pill.setAttribute('aria-label', message);
+      }
+    } else {
+      pageBody.dataset.overflow = 'false';
+    }
+  }
+
+  function checkAllPageOverflow() {
+    editorRoot.querySelectorAll('.page-container:not(.footnotes-page) .page-body').forEach(checkPageOverflowState);
+  }
+
   function captureSnapshot() {
     if (suppressSnapshots) return;
     if (lastSerialized === null) {
@@ -1299,6 +1489,8 @@
   function afterChange() {
     if (suppressSnapshots) return;
     lastSerialized = serializeState();
+    checkAllPageOverflow();
+    persistDraft(lastSerialized);
   }
 
   function applyState(serialized) {
@@ -1311,12 +1503,14 @@
       updatePageNumbers();
       renumberFootnotes();
       initAllTableResizers();
+      checkAllPageOverflow();
     } catch (e) {
       console.error(e);
       showSnackbar('Failed to apply state');
     }
     suppressSnapshots = false;
     lastSerialized = serialized;
+    persistDraft(serialized);
   }
 
   function undo() {
@@ -1345,6 +1539,8 @@
     undoStack = [];
     redoStack = [];
     lastSerialized = serializeState();
+    checkAllPageOverflow();
+    persistDraft(lastSerialized);
   }
 
   /* -------- Footnotes: debounced auto-renumber + observer -------- */
@@ -1478,287 +1674,64 @@
     sel.addRange(currentTextRange);
   }
 
-  const INLINE_FORMATS = {
-    bold: { tagName: 'strong' },
-    italic: { tagName: 'em' },
-    underline: { tagName: 'u' }
-  };
-
-  function elementMatchesFormat(el, format) {
-    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
-    if (el.tagName.toLowerCase() !== format.tagName.toLowerCase()) return false;
-    if (format.className && !el.classList.contains(format.className)) return false;
-    if (format.attributes) {
-      for (const [key, value] of Object.entries(format.attributes)) {
-        if (el.getAttribute(key) !== value) return false;
-      }
+  function focusEditableFromRange(range) {
+    if (!range) return;
+    let node = range.startContainer;
+    if (node && node.nodeType === Node.TEXT_NODE) {
+      node = node.parentElement;
     }
-    return true;
-  }
-
-  function createFormatElement(format) {
-    const el = document.createElement(format.tagName);
-    if (format.className) el.classList.add(format.className);
-    if (format.attributes) {
-      for (const [key, value] of Object.entries(format.attributes)) {
-        el.setAttribute(key, value);
-      }
-    }
-    return el;
-  }
-
-  function splitTextBoundaries(range) {
-    if (range.endContainer.nodeType === Node.TEXT_NODE) {
-      const endNode = range.endContainer;
-      if (range.endOffset > 0 && range.endOffset < endNode.length) {
-        endNode.splitText(range.endOffset);
-      }
-    }
-    if (range.startContainer.nodeType === Node.TEXT_NODE) {
-      const startNode = range.startContainer;
-      if (range.startOffset > 0 && range.startOffset < startNode.length) {
-        const newNode = startNode.splitText(range.startOffset);
-        range.setStart(newNode, 0);
+    if (!node || !(node instanceof Element)) return;
+    const editable = node.closest('[contenteditable="true"]');
+    if (editable && typeof editable.focus === 'function') {
+      try {
+        editable.focus({ preventScroll: true });
+      } catch (err) {
+        editable.focus();
       }
     }
   }
 
-  function splitElementAt(element, offset) {
-    if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
-    const length = element.childNodes.length;
-    if (offset <= 0 || offset >= length) return null;
-    const clone = element.cloneNode(false);
-    const parent = element.parentNode;
-    if (!parent) return null;
-    while (element.childNodes.length > offset) {
-      clone.appendChild(element.childNodes[offset]);
-    }
-    parent.insertBefore(clone, element.nextSibling);
-    return clone;
-  }
-
-  function splitMatchingAncestorsAtBoundary(range, format, isStart) {
-    let container = isStart ? range.startContainer : range.endContainer;
-    let offset = isStart ? range.startOffset : range.endOffset;
-
-    if (container.nodeType === Node.TEXT_NODE) {
-      const parent = container.parentNode;
-      if (!parent) return;
-      const index = Array.prototype.indexOf.call(parent.childNodes, container);
-      container = parent;
-      offset = isStart ? index : index + (offset === 0 ? 0 : 1);
-    }
-
-    while (container && container !== editorRoot && container.parentNode) {
-      if (container.nodeType === Node.ELEMENT_NODE && elementMatchesFormat(container, format)) {
-        const clone = splitElementAt(container, offset);
-        if (clone) {
-          if (isStart) {
-            container = clone;
-            offset = 0;
-          } else {
-            offset = container.childNodes.length;
-          }
-        }
-      }
-      const parent = container.parentNode;
-      const idx = Array.prototype.indexOf.call(parent.childNodes, container);
-      offset = isStart ? idx : idx + 1;
-      container = parent;
-    }
-  }
-
-  function getTextNodesInRange(range) {
-    const nodes = [];
-    const walker = document.createTreeWalker(
-      range.commonAncestorContainer,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode(node) {
-          if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
-          try {
-            return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-          } catch (e) {
-            return NodeFilter.FILTER_REJECT;
-          }
-        }
-      }
-    );
-    let current;
-    while ((current = walker.nextNode())) {
-      nodes.push(current);
-    }
-    return nodes;
-  }
-
-  function findMatchingAncestor(node, format) {
-    let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-    while (el && el !== editorRoot) {
-      if (elementMatchesFormat(el, format)) return el;
-      el = el.parentElement;
-    }
-    return null;
-  }
-
-  function unwrapElement(el) {
-    const parent = el.parentNode;
-    if (!parent) return;
-    while (el.firstChild) {
-      parent.insertBefore(el.firstChild, el);
-    }
-    el.remove();
-  }
-
-  function unwrapMatchingInFragment(root, predicate) {
-    const toUnwrap = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
-    let current;
-    while ((current = walker.nextNode())) {
-      if (predicate(current)) toUnwrap.push(current);
-    }
-    toUnwrap.reverse().forEach(unwrapElement);
-  }
-
-  function getFirstTextNode(node) {
-    if (!node) return null;
-    if (node.nodeType === Node.TEXT_NODE) return node;
-    let child = node.firstChild;
-    while (child) {
-      const found = getFirstTextNode(child);
-      if (found) return found;
-      child = child.nextSibling;
-    }
-    return null;
-  }
-
-  function getLastTextNode(node) {
-    if (!node) return null;
-    if (node.nodeType === Node.TEXT_NODE) return node;
-    let child = node.lastChild;
-    while (child) {
-      const found = getLastTextNode(child);
-      if (found) return found;
-      child = child.previousSibling;
-    }
-    return null;
-  }
-
-  function setSelectionFromInserted(nodes) {
-    if (!nodes.length) return;
-    const sel = window.getSelection();
-    const range = document.createRange();
-    const firstNode = nodes[0];
-    const lastNode = nodes[nodes.length - 1];
-    const startText = getFirstTextNode(firstNode);
-    const endText = getLastTextNode(lastNode);
-    if (startText) {
-      range.setStart(startText, 0);
-    } else {
-      range.setStartBefore(firstNode);
-    }
-    if (endText) {
-      range.setEnd(endText, endText.length);
-    } else {
-      range.setEndAfter(lastNode);
-    }
-    sel.removeAllRanges();
-    sel.addRange(range);
-    currentTextRange = range.cloneRange();
-  }
-
-  function mergeAdjacentFormat(el, format) {
-    let target = el;
-    let prev = target.previousSibling;
-    if (prev && prev.nodeType === Node.ELEMENT_NODE && elementMatchesFormat(prev, format)) {
-      while (target.firstChild) {
-        prev.appendChild(target.firstChild);
-      }
-      target.remove();
-      target = prev;
-    }
-    let next = target.nextSibling;
-    while (next && next.nodeType === Node.ELEMENT_NODE && elementMatchesFormat(next, format)) {
-      while (next.firstChild) {
-        target.appendChild(next.firstChild);
-      }
-      const toRemove = next;
-      next = next.nextSibling;
-      toRemove.remove();
-    }
-    return target;
-  }
-
-  function cleanupEmptyInline(format) {
-    const nodes = editorRoot.querySelectorAll(format.tagName);
-    nodes.forEach(node => {
-      if (!elementMatchesFormat(node, format)) return;
-      if (!node.textContent && node.childNodes.length === 0) {
-        node.remove();
-      }
-    });
-  }
-
-  function toggleInlineFormat(format, options = {}) {
+  function execWithinSelection(callback, { hideToolbar = false } = {}) {
     if (!currentTextRange) return;
+    focusEditableFromRange(currentTextRange);
     restoreSelection();
+    callback();
     const sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    if (range.collapsed) return;
-
-    splitTextBoundaries(range);
-    splitMatchingAncestorsAtBoundary(range, format, true);
-    splitMatchingAncestorsAtBoundary(range, format, false);
-
-    const textNodes = getTextNodesInRange(range);
-    if (!textNodes.length) return;
-
-    const shouldRemove = !options.forceApply && !options.unwrapOnly && textNodes.every(node => findMatchingAncestor(node, format));
-    const fragment = range.extractContents();
-
-    if (options.stripExisting) {
-      unwrapMatchingInFragment(fragment, el => elementMatchesFormat(el, format));
-    }
-
-    let insertedNodes = [];
-    if (shouldRemove || options.unwrapOnly) {
-      unwrapMatchingInFragment(fragment, el => elementMatchesFormat(el, format));
-      insertedNodes = Array.from(fragment.childNodes);
-      range.insertNode(fragment);
-    } else {
-      const wrapper = createFormatElement(format);
-      unwrapMatchingInFragment(fragment, el => elementMatchesFormat(el, format));
-      wrapper.appendChild(fragment);
-      range.insertNode(wrapper);
-      const merged = mergeAdjacentFormat(wrapper, format);
-      insertedNodes = [merged];
-    }
-
-    cleanupEmptyInline(format);
-    if (insertedNodes.length) {
-      setSelectionFromInserted(insertedNodes);
+    if (sel && sel.rangeCount) {
+      currentTextRange = sel.getRangeAt(0).cloneRange();
     } else {
       currentTextRange = null;
     }
-
-    if (options.hideToolbar) hideTextToolbar();
-    else updateTextToolbar();
     scheduleInputSnapshot();
+    if (hideToolbar) hideTextToolbar();
+    else updateTextToolbar();
   }
 
   function applyInlineCmd(cmd) {
-    const format = INLINE_FORMATS[cmd];
-    if (!format) return;
-    toggleInlineFormat(format);
+    execWithinSelection(() => document.execCommand(cmd, false, null));
   }
 
   function toggleHighlight() {
-    const format = { tagName: 'mark', className: 'text-highlight' };
-    toggleInlineFormat(format, { hideToolbar: true });
+    const command = document.queryCommandSupported('hiliteColor') ? 'hiliteColor' : 'backColor';
+    execWithinSelection(() => {
+      let currentValue = '';
+      try {
+        currentValue = document.queryCommandValue(command) || '';
+      } catch (err) {
+        currentValue = '';
+      }
+      const lower = typeof currentValue === 'string' ? currentValue.toLowerCase() : '';
+      if (lower.includes('255') && lower.includes('243')) {
+        document.execCommand(command, false, 'transparent');
+      } else {
+        document.execCommand(command, false, '#fff3b0');
+      }
+    }, { hideToolbar: true });
   }
 
   function applyParagraphStyle(style) {
     if (!currentTextRange) return;
+    focusEditableFromRange(currentTextRange);
     restoreSelection();
     const sel = window.getSelection();
     if (!sel.rangeCount) return;
@@ -1795,26 +1768,96 @@
       hideTextToolbar();
       return;
     }
-    restoreSelection();
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    const format = {
-      tagName: 'a',
-      attributes: {
-        href: url,
-        target: '_blank',
-        rel: 'noopener noreferrer'
-      }
-    };
-    toggleInlineFormat(format, { forceApply: true, stripExisting: true, hideToolbar: true });
+    execWithinSelection(() => {
+      document.execCommand('unlink');
+      document.execCommand('createLink', false, url);
+    }, { hideToolbar: true });
   }
 
   function removeLink() {
     if (!currentTextRange) return;
-    const format = { tagName: 'a' };
-    toggleInlineFormat(format, { unwrapOnly: true, hideToolbar: true });
+    execWithinSelection(() => document.execCommand('unlink'), { hideToolbar: true });
   }
 
   /* -------- Footnotes add + renumber -------- */
+
+  function createFootnoteRefElement(id) {
+    const sup = document.createElement('sup');
+    sup.className = 'footnote-ref';
+    sup.dataset.uniqueId = id;
+    sup.contentEditable = 'false';
+    sup.tabIndex = 0;
+    sup.setAttribute('role', 'button');
+    sup.setAttribute('aria-label', 'Jump to footnote');
+    sup.textContent = '[?]';
+    return sup;
+  }
+
+  function decorateFootnoteListItem(li, num) {
+    if (!li) return;
+    li.contentEditable = 'true';
+    li.setAttribute('data-number', String(num));
+    li.id = 'fn-note-' + num;
+    let returnBtn = li.querySelector('.footnote-return');
+    if (!returnBtn) {
+      returnBtn = document.createElement('button');
+      returnBtn.type = 'button';
+      returnBtn.className = 'footnote-return';
+      returnBtn.contentEditable = 'false';
+      returnBtn.textContent = '↩';
+      li.appendChild(returnBtn);
+    }
+    returnBtn.dataset.uniqueId = li.dataset.uniqueId;
+    returnBtn.tabIndex = 0;
+    returnBtn.setAttribute('aria-label', 'Jump to reference ' + num);
+  }
+
+  function cleanupOrphanFootnoteTargets() {
+    editorRoot.querySelectorAll('.footnote-target').forEach(wrapper => {
+      if (!wrapper.querySelector('.footnote-ref')) {
+        while (wrapper.firstChild) {
+          wrapper.parentNode.insertBefore(wrapper.firstChild, wrapper);
+        }
+        wrapper.remove();
+      }
+    });
+  }
+
+  function flashElement(el) {
+    if (!el) return;
+    el.classList.add('footnote-highlight');
+    setTimeout(() => el.classList.remove('footnote-highlight'), 1200);
+  }
+
+  function scrollToFootnoteNote(uniqueId) {
+    if (!uniqueId) return;
+    const note = editorRoot.querySelector(`#footnote-list li[data-unique-id="${uniqueId}"]`);
+    if (note) {
+      note.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      flashElement(note);
+      setTimeout(() => {
+        try { note.focus(); } catch (err) { /* ignore */ }
+      }, 200);
+    }
+  }
+
+  function scrollToFootnoteRef(uniqueId) {
+    if (!uniqueId) return;
+    const ref = editorRoot.querySelector(`.footnote-ref[data-unique-id="${uniqueId}"]`);
+    if (ref) {
+      const wrapper = ref.closest('.footnote-target') || ref;
+      wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      flashElement(wrapper);
+      const range = document.createRange();
+      range.setStartAfter(ref);
+      range.setEndAfter(ref);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      currentTextRange = range.cloneRange();
+    }
+  }
 
   function addFootnote() {
     const sel = window.getSelection();
@@ -1834,28 +1877,43 @@
 
     captureSnapshot();
     const id = 'fn-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
-
-    const sup = document.createElement('sup');
-    sup.className = 'footnote-ref';
-    sup.dataset.uniqueId = id;
-    sup.textContent = '[?]';
-
-    range.collapse(false);
-    range.insertNode(sup);
-    range.setStartAfter(sup);
-    range.setEndAfter(sup);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    const sup = createFootnoteRefElement(id);
+    let seedText = 'Your footnote text here.';
+    if (!range.collapsed) {
+      const fragment = range.cloneContents();
+      const text = fragment.textContent ? fragment.textContent.replace(/\s+/g, ' ').trim() : '';
+      if (text) seedText = text;
+      const wrapper = document.createElement('span');
+      wrapper.className = 'footnote-target';
+      wrapper.dataset.uniqueId = id;
+      wrapper.appendChild(range.extractContents());
+      wrapper.appendChild(sup);
+      range.insertNode(wrapper);
+      const after = document.createRange();
+      after.setStartAfter(wrapper);
+      after.setEndAfter(wrapper);
+      sel.removeAllRanges();
+      sel.addRange(after);
+    } else {
+      range.collapse(false);
+      range.insertNode(sup);
+      const after = document.createRange();
+      after.setStartAfter(sup);
+      after.setEndAfter(sup);
+      sel.removeAllRanges();
+      sel.addRange(after);
+    }
 
     const list = editorRoot.querySelector('.footnotes-page #footnote-list');
     const li = document.createElement('li');
     li.dataset.uniqueId = id;
     li.contentEditable = 'true';
-    li.textContent = 'Your footnote text here.';
+    li.textContent = seedText;
     list.appendChild(li);
 
     renumberFootnotes();
     afterChange();
+    flashElement(sup);
   }
 
   function renumberFootnotes() {
@@ -1880,7 +1938,11 @@
     // If a li was deleted in the footnotes list, drop its refs
     refNodes.slice().forEach(ref => {
       if (!liMap.has(ref.dataset.uniqueId)) {
+        const wrapper = ref.parentElement;
         ref.remove();
+        if (wrapper && wrapper.classList && wrapper.classList.contains('footnote-target')) {
+          cleanupOrphanFootnoteTargets();
+        }
       }
     });
 
@@ -1923,10 +1985,14 @@
       }
       const num = assigned.get(id);
       ref.textContent = '[' + num + ']';
+      ref.contentEditable = 'false';
+      ref.tabIndex = 0;
+      ref.setAttribute('role', 'button');
+      ref.setAttribute('aria-label', 'Jump to footnote ' + num);
+      ref.id = 'fn-ref-' + num;
       const li = currentLis.get(id);
       if (li) {
-        li.setAttribute('data-number', String(num));
-        li.id = 'fn-' + num;
+        decorateFootnoteListItem(li, num);
       }
     });
 
@@ -1952,35 +2018,166 @@
         child.remove();
       }
     });
+
+    cleanupOrphanFootnoteTargets();
   }
 
   /* -------- Page + block creation helpers -------- */
 
-  function createPage() {
+  function createOverflowIndicator() {
+    const indicator = document.createElement('div');
+    indicator.className = 'overflow-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    const pill = document.createElement('span');
+    pill.textContent = '!';
+    pill.title = 'Consider splitting page';
+    pill.setAttribute('aria-label', 'Consider splitting page');
+    indicator.appendChild(pill);
+    return indicator;
+  }
+
+  function decorateDeleteIcon(span) {
+    if (!span) return;
+    span.classList.add('delete-icon');
+    span.contentEditable = 'false';
+    span.setAttribute('role', 'button');
+    span.setAttribute('tabindex', '0');
+    span.setAttribute('aria-label', 'Delete block');
+    span.textContent = '×';
+  }
+
+  function createPage(options = {}) {
+    const { withDefaultContent = true } = options;
     const div = document.createElement('div');
     div.className = 'page-container';
     div.dataset.pageType = 'content';
     div.innerHTML = `
       <div class="page-controls">
-        <button class="page-control-btn" data-move-page-up title="Move page up">↑</button>
-        <button class="page-control-btn" data-move-page-down title="Move page down">↓</button>
-        <button class="page-control-btn" data-dup-page title="Duplicate page">⧉</button>
-        <button class="page-control-btn" data-del-page title="Delete page">✕</button>
+        <button class="page-control-btn" data-move-page-up title="Move page up" aria-label="Move page up">↑</button>
+        <button class="page-control-btn" data-move-page-down title="Move page down" aria-label="Move page down">↓</button>
+        <button class="page-control-btn" data-dup-page title="Duplicate page" aria-label="Duplicate page">⧉</button>
+        <button class="page-control-btn" data-del-page title="Delete page" aria-label="Delete page">✕</button>
       </div>
       <div class="page-overlay"></div>
-      <div class="page-body">
-        <h3 class="section-heading" data-deletable="true">
-          <span contenteditable="true">New section title</span>
-          <span class="delete-icon" contenteditable="false">×</span>
-        </h3>
-        <p class="body-text" data-deletable="true" contenteditable="true">
-          New paragraph…
-          <span class="delete-icon" contenteditable="false">×</span>
-        </p>
-      </div>
+      <div class="page-body"></div>
       <div class="page-footer"></div>
     `;
+    const body = div.querySelector('.page-body');
+    if (withDefaultContent) {
+      const section = document.createElement('h3');
+      section.className = 'section-heading';
+      section.dataset.deletable = 'true';
+      section.innerHTML = `<span contenteditable="true">New section title</span>${DELETE_ICON_HTML}`;
+      const paragraph = document.createElement('p');
+      paragraph.className = 'body-text';
+      paragraph.dataset.deletable = 'true';
+      paragraph.contentEditable = 'true';
+      paragraph.innerHTML = `New paragraph…${DELETE_ICON_HTML}`;
+      body.appendChild(section);
+      body.appendChild(paragraph);
+    }
+    body.appendChild(createOverflowIndicator());
     return div;
+  }
+
+  function createDocTitleElement(text) {
+    const div = document.createElement('div');
+    div.className = 'doc-title';
+    div.dataset.deletable = 'true';
+    div.contentEditable = 'true';
+    div.innerHTML = `${text}${DELETE_ICON_HTML}`;
+    return div;
+  }
+
+  function createDocSubtitleElement(text) {
+    const p = document.createElement('p');
+    p.className = 'doc-subtitle body-text';
+    p.dataset.deletable = 'true';
+    p.contentEditable = 'true';
+    p.innerHTML = `${text}${DELETE_ICON_HTML}`;
+    return p;
+  }
+
+  function createSectionHeadingElement(text) {
+    const h = document.createElement('h3');
+    h.className = 'section-heading';
+    h.dataset.deletable = 'true';
+    h.innerHTML = `<span contenteditable="true">${text}</span>${DELETE_ICON_HTML}`;
+    return h;
+  }
+
+  function createBodyParagraphElement(text) {
+    const p = document.createElement('p');
+    p.className = 'body-text';
+    p.dataset.deletable = 'true';
+    p.contentEditable = 'true';
+    p.innerHTML = `${text}${DELETE_ICON_HTML}`;
+    return p;
+  }
+
+  function populateIgaBriefTemplate(body) {
+    body.appendChild(createDocTitleElement('Executive Brief Title'));
+    body.appendChild(createDocSubtitleElement('Short positioning subtitle / context line.'));
+    body.appendChild(createSectionHeadingElement('At a glance'));
+    body.appendChild(createAtAGlanceTable());
+    body.appendChild(createSectionHeadingElement('Key messages'));
+    body.appendChild(createBodyParagraphElement('Use this space to summarise the essentials in clear, direct language.'));
+    body.appendChild(createSectionHeadingElement('Before / After / Impact'));
+    body.appendChild(createBAITable());
+    body.appendChild(createSectionHeadingElement('Actions'));
+    body.appendChild(createStepsBlock());
+    body.appendChild(createSectionHeadingElement('FAQs'));
+    body.appendChild(createFaqBlock());
+    body.appendChild(createSectionHeadingElement('Sources'));
+    body.appendChild(createBodyParagraphElement('List supporting sources and references here.'));
+  }
+
+  function populateFtExplainerTemplate(body) {
+    body.appendChild(createDocTitleElement('Explainer headline'));
+    body.appendChild(createDocSubtitleElement('Optional kicker for FT-style tone.'));
+    body.appendChild(createSectionHeadingElement('Context'));
+    body.appendChild(createBodyParagraphElement('Set the context with a succinct summary and key framing.'));
+    body.appendChild(createSectionHeadingElement('Key messages'));
+    const cta = createCtaBox();
+    const titleEl = cta.querySelector('.cta-title');
+    const bodyEl = cta.querySelector('.cta-body');
+    if (titleEl) titleEl.textContent = 'Key message';
+    if (bodyEl) bodyEl.textContent = 'Use this callout to highlight the most important takeaway.';
+    cta.dataset.customTitle = 'true';
+    body.appendChild(cta);
+    body.appendChild(createSectionHeadingElement('What changed'));
+    body.appendChild(createBodyParagraphElement('Explain what has changed and why it matters for the audience.'));
+    body.appendChild(createSectionHeadingElement('Implications'));
+    body.appendChild(createBodyParagraphElement('Spell out what readers should do or think differently as a result.'));
+    body.appendChild(createSectionHeadingElement('FAQs'));
+    body.appendChild(createFaqBlock());
+    body.appendChild(createSectionHeadingElement('Sources'));
+    body.appendChild(createBodyParagraphElement('Include supporting evidence, links or appendices.'));
+  }
+
+  const TEMPLATE_BUILDERS = {
+    'iga-brief': populateIgaBriefTemplate,
+    'ft-explainer': populateFtExplainerTemplate
+  };
+
+  function applyTemplate(templateKey) {
+    const builder = TEMPLATE_BUILDERS[templateKey];
+    if (!builder) return;
+    if (!window.confirm('Applying a template will replace the current content. Continue?')) return;
+    captureSnapshot();
+    Array.from(editorRoot.querySelectorAll('.page-container:not(.footnotes-page)')).forEach(page => page.remove());
+    const newPage = createPage({ withDefaultContent: false });
+    const footnotes = editorRoot.querySelector('.footnotes-page');
+    editorRoot.insertBefore(newPage, footnotes);
+    const body = newPage.querySelector('.page-body');
+    builder(body);
+    updatePageNumbers();
+    renumberFootnotes();
+    initAllTableResizers();
+    checkAllPageOverflow();
+    afterChange();
+    ensureBlockVisible(newPage);
+    showSnackbar('Template applied');
   }
 
   function addPage() {
@@ -2001,7 +2198,7 @@
     const h = document.createElement('h3');
     h.className = 'section-heading';
     h.dataset.deletable = 'true';
-    h.innerHTML = `<span contenteditable="true">New section title</span><span class="delete-icon" contenteditable="false">×</span>`;
+    h.innerHTML = `<span contenteditable="true">New section title</span>${DELETE_ICON_HTML}`;
     body.appendChild(h);
     afterChange();
     ensureBlockVisible(h);
@@ -2015,7 +2212,7 @@
     p.className = 'body-text';
     p.dataset.deletable = 'true';
     p.contentEditable = 'true';
-    p.innerHTML = 'New paragraph…<span class="delete-icon" contenteditable="false">×</span>';
+    p.innerHTML = `New paragraph…${DELETE_ICON_HTML}`;
     body.appendChild(p);
     afterChange();
     ensureBlockVisible(p);
@@ -2027,7 +2224,7 @@
     div.dataset.deletable = 'true';
     div.dataset.generatedTitle = 'Info';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <div class="cta-type-switch" contenteditable="false">
         <button data-cta="cta-blue" class="active">Info</button>
         <button data-cta="cta-green">Action</button>
@@ -2055,7 +2252,7 @@
     div.className = 'steps-block page-break-avoider';
     div.dataset.deletable = 'true';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <div class="steps-title" contenteditable="true">Steps for implementation</div>
       <ol class="styled-steps">
         <li contenteditable="true">Step 1…</li>
@@ -2082,7 +2279,7 @@
     div.className = 'faq-block page-break-avoider';
     div.dataset.deletable = 'true';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <div class="faq-title" contenteditable="true">Frequently asked questions</div>
       <ol class="faq-list">
         <li>
@@ -2113,7 +2310,7 @@
     div.className = 'quote-block';
     div.dataset.deletable = 'true';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <blockquote class="quote-body" contenteditable="true">“Quoted text…”</blockquote>
       <div class="quote-source" contenteditable="true">Source / speaker (optional)</div>
     `;
@@ -2131,7 +2328,7 @@
     div.dataset.deletable = 'true';
     div.innerHTML = `
       <hr class="section-divider" />
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
     `;
     body.appendChild(div);
     afterChange();
@@ -2146,7 +2343,7 @@
     p.className = 'citation-block';
     p.dataset.deletable = 'true';
     p.contentEditable = 'true';
-    p.innerHTML = '(Source: …)<span class="delete-icon" contenteditable="false">×</span>';
+    p.innerHTML = `(Source: …)${DELETE_ICON_HTML}`;
     body.appendChild(p);
     afterChange();
     ensureBlockVisible(p);
@@ -2157,7 +2354,7 @@
     div.className = 'table-block page-break-avoider';
     div.dataset.deletable = 'true';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <table class="iga-table">
         <thead>
           <tr>
@@ -2197,7 +2394,7 @@
     div.className = 'table-block page-break-avoider';
     div.dataset.deletable = 'true';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <table class="iga-table">
         <thead>
           <tr>
@@ -2289,7 +2486,7 @@
         block.dataset.deletable = 'true';
 
         let html = `
-          <span class="delete-icon" contenteditable="false">×</span>
+          ${DELETE_ICON_HTML}
           <table class="iga-table">
             <tbody>
         `;
@@ -2331,13 +2528,14 @@
     div.className = 'image-block image-size-m page-break-avoider';
     div.dataset.deletable = 'true';
     div.innerHTML = `
-      <span class="delete-icon" contenteditable="false">×</span>
+      ${DELETE_ICON_HTML}
       <div class="image-size-controls" contenteditable="false">
         <button data-size="s">S</button>
         <button data-size="m" class="active">M</button>
         <button data-size="l">L</button>
       </div>
       <img src="${url}" alt="">
+      <div class="image-caption" contenteditable="true">Add an explanatory caption…</div>
     `;
     body.appendChild(div);
     afterChange();
@@ -2366,7 +2564,7 @@
 
   /* -------- Modal helpers -------- */
 
-  function openModal({ title, body, onConfirm }) {
+  function openModal({ title, body, onConfirm, onCancel, confirmLabel = 'OK', cancelLabel = 'Cancel' }) {
     modalInner.innerHTML = `
       <h3>${title}</h3>
       ${body}
@@ -2376,10 +2574,28 @@
       </div>
     `;
     modalBackdrop.classList.add('visible');
-    modalInner.querySelector('[data-modal-cancel]').onclick = closeModal;
-    modalInner.querySelector('[data-modal-confirm]').onclick = () => {
-      if (typeof onConfirm === 'function') onConfirm();
-    };
+    const cancelBtn = modalInner.querySelector('[data-modal-cancel]');
+    const confirmBtn = modalInner.querySelector('[data-modal-confirm]');
+    if (cancelBtn) {
+      cancelBtn.textContent = cancelLabel;
+      cancelBtn.onclick = () => {
+        if (typeof onCancel === 'function') {
+          onCancel();
+        } else {
+          closeModal();
+        }
+      };
+    }
+    if (confirmBtn) {
+      confirmBtn.textContent = confirmLabel;
+      confirmBtn.onclick = () => {
+        if (typeof onConfirm === 'function') {
+          onConfirm();
+        } else {
+          closeModal();
+        }
+      };
+    }
   }
 
   function closeModal() {
@@ -2646,7 +2862,7 @@
             const blockHtml = paragraphs
               .map(seg => {
                 const html = escapeHtml(seg).replace(/\n/g, '<br>');
-                return `<p class="body-text" data-deletable="true" contenteditable="true">${html}<span class="delete-icon" contenteditable="false">×</span></p>`;
+                return `<p class="body-text" data-deletable="true" contenteditable="true">${html}${DELETE_ICON_HTML}</p>`;
               })
               .join('');
             document.execCommand('insertHTML', false, blockHtml);
@@ -2670,9 +2886,7 @@
           p.appendChild(document.createTextNode(line));
         });
         const icon = document.createElement('span');
-        icon.className = 'delete-icon';
-        icon.contentEditable = 'false';
-        icon.textContent = '×';
+        decorateDeleteIcon(icon);
         p.appendChild(icon);
         body.appendChild(p);
       });
@@ -2748,6 +2962,45 @@
     insertInternalBlocks(internalClipboardHTML);
   }
 
+  function moveBlocksToNewPage() {
+    const blocks = getSelectedBlocks();
+    if (!blocks.length) {
+      showSnackbar('Select block(s) to move');
+      return;
+    }
+
+    captureSnapshot();
+
+    const sorted = blocks.slice().sort((a, b) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1
+    );
+
+    const anchor = sorted[sorted.length - 1];
+    const anchorPage = anchor.closest('.page-container');
+    const newPage = createPage({ withDefaultContent: false });
+    const footnotes = editorRoot.querySelector('.footnotes-page');
+
+    if (anchorPage && !anchorPage.classList.contains('footnotes-page')) {
+      anchorPage.insertAdjacentElement('afterend', newPage);
+    } else {
+      editorRoot.insertBefore(newPage, footnotes);
+    }
+
+    const body = newPage.querySelector('.page-body');
+    sorted.forEach(block => body.appendChild(block));
+
+    updatePageNumbers();
+    renumberFootnotes();
+    checkAllPageOverflow();
+    afterChange();
+
+    clearBlockSelection();
+    sorted.forEach(block => block.classList.add('block-selected'));
+    showBlockActions();
+    if (sorted[0]) ensureBlockVisible(sorted[0]);
+    showSnackbar('Moved blocks to new page');
+  }
+
   function moveBlocks(direction) {
     const blocks = getSelectedBlocks();
     if (!blocks.length) return;
@@ -2805,30 +3058,134 @@
     clearBlockSelection();
   }
 
+  function collectQualityIssues() {
+    const issues = new Set();
+    const placeholderHits = new Set();
+    const scanNodes = editorRoot.querySelectorAll('[data-deletable="true"], td, th, .steps-block li, .faq-block .faq-q, .faq-block .faq-a, .image-caption');
+    scanNodes.forEach(node => {
+      const text = (node.textContent || '').trim();
+      if (!text) return;
+      QUALITY_PLACEHOLDERS.forEach(placeholder => {
+        if (text.includes(placeholder)) placeholderHits.add(placeholder);
+      });
+    });
+    if (placeholderHits.size) {
+      issues.add('Replace placeholder copy: ' + Array.from(placeholderHits).join(', '));
+    }
+
+    editorRoot.querySelectorAll('.cta-box').forEach(box => {
+      const titleEl = box.querySelector('.cta-title');
+      const bodyEl = box.querySelector('.cta-body');
+      const title = titleEl ? titleEl.textContent.trim() : '';
+      const body = bodyEl ? bodyEl.textContent.trim() : '';
+      const customTitle = box.dataset.customTitle === 'true';
+      if ((!customTitle && title === 'Info') || body === 'Key message text…') {
+        issues.add('Update CTA blocks so they no longer use default Info / Key message text.');
+      }
+    });
+
+    editorRoot.querySelectorAll('.image-block').forEach(block => {
+      const img = block.querySelector('img');
+      const altText = img ? (img.getAttribute('alt') || '').trim() : '';
+      const captionEl = block.querySelector('.image-caption');
+      const captionText = captionEl ? captionEl.textContent.trim() : '';
+      if (!altText) {
+        issues.add('Provide alt text for all images.');
+      }
+      if (!captionText || captionText === 'Add an explanatory caption…') {
+        issues.add('Add explanatory captions for images.');
+      }
+    });
+
+    const unresolvedRefs = Array.from(editorRoot.querySelectorAll('.footnote-ref')).some(ref => (ref.textContent || '').includes('?'));
+    if (unresolvedRefs) {
+      issues.add('Resolve placeholder footnote references [?].');
+    }
+
+    return Array.from(issues);
+  }
+
+  function runQualityCheck(options = {}) {
+    const { onContinue, showNoIssues = true } = options;
+    const issues = collectQualityIssues();
+    if (!issues.length) {
+      if (showNoIssues) showSnackbar('No quality issues found');
+      if (typeof onContinue === 'function') onContinue();
+      return;
+    }
+
+    const listItems = issues.map(issue => `<li>${issue}</li>`).join('');
+    openModal({
+      title: 'Quality check',
+      body: `<p>Fix these before finalising your brief:</p><ul>${listItems}</ul>`,
+      confirmLabel: onContinue ? 'Continue anyway' : 'OK',
+      cancelLabel: 'Close',
+      onConfirm: () => {
+        closeModal();
+        if (typeof onContinue === 'function') onContinue();
+      },
+      onCancel: closeModal
+    });
+  }
+
+  function showHelpModal() {
+    const body = `
+      <div class="help-modal-content">
+        <p><strong>Selecting blocks:</strong> Click inside any block to select it. Use Ctrl/Cmd + click to multi-select and the floating menu to move, duplicate or delete.</p>
+        <p><strong>CTA colours:</strong></p>
+        <ul>
+          <li><strong>Info</strong> — neutral context or updates.</li>
+          <li><strong>Action</strong> — tasks and next steps.</li>
+          <li><strong>Caution</strong> — risks or watch-outs.</li>
+          <li><strong>Critical</strong> — urgent blockers or escalations.</li>
+        </ul>
+        <p><strong>Tables:</strong></p>
+        <ul>
+          <li><em>At-a-glance</em> covers audience, objective and timing.</li>
+          <li><em>Before / After / Impact</em> captures the change story.</li>
+          <li>Use custom tables for bespoke layouts.</li>
+        </ul>
+        <p><strong>Footnotes:</strong> Select text and press “+ Footnote” to wrap it. Click a reference to jump to its note and use the ↩ button to return.</p>
+      </div>
+    `;
+    openModal({
+      title: 'Quick help',
+      body,
+      confirmLabel: 'Got it',
+      cancelLabel: 'Close',
+      onConfirm: closeModal,
+      onCancel: closeModal
+    });
+  }
+
   /* -------- Export / import -------- */
 
   function exportJSON() {
-    const theme = getCurrentTheme();
-    clearBlockSelection();
-    hideTextToolbar();
-    hideBlockActions();
-    const content = `<main id="editor-root">${editorRoot.innerHTML}</main>`;
-    const payload = {
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      theme,
-      content
+    const performExport = () => {
+      const theme = getCurrentTheme();
+      clearBlockSelection();
+      hideTextToolbar();
+      hideBlockActions();
+      const content = `<main id="editor-root">${editorRoot.innerHTML}</main>`;
+      const payload = {
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        theme,
+        content
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'executive-brief.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showSnackbar('JSON exported');
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'executive-brief.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    showSnackbar('JSON exported');
+
+    runQualityCheck({ onContinue: performExport });
   }
 
   function importJSONFromFile(file) {
@@ -2874,6 +3231,22 @@
 
   document.addEventListener('click', e => {
     const target = e.target;
+
+    const footnoteReturn = target.closest('.footnote-return');
+    if (footnoteReturn) {
+      e.preventDefault();
+      e.stopPropagation();
+      scrollToFootnoteRef(footnoteReturn.dataset.uniqueId);
+      return;
+    }
+
+    const footnoteRef = target.closest('.footnote-ref');
+    if (footnoteRef) {
+      e.preventDefault();
+      e.stopPropagation();
+      scrollToFootnoteNote(footnoteRef.dataset.uniqueId);
+      return;
+    }
 
     // Delete icon for blocks (not used on footnotes page)
     if (target.classList.contains('delete-icon')) {
@@ -3027,6 +3400,7 @@
       else if (action === 'copy') copySelectedBlocks(false);
       else if (action === 'cut') copySelectedBlocks(true);
       else if (action === 'paste') pasteBlocksAfterSelection();
+      else if (action === 'move-to-page') moveBlocksToNewPage();
       else if (action === 'delete') deleteBlocks();
       return;
     }
@@ -3079,6 +3453,13 @@
     this.value = '';
   });
 
+  textToolbar.addEventListener('mousedown', e => {
+    if (e.target.closest('input, textarea, select')) return;
+    if (e.target.closest('button')) {
+      e.preventDefault();
+    }
+  });
+
   document.getElementById('link-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -3090,6 +3471,7 @@
 
   document.addEventListener('mouseup', () => setTimeout(updateTextToolbar, 10));
   document.addEventListener('keyup', () => setTimeout(updateTextToolbar, 10));
+  window.addEventListener('resize', () => checkAllPageOverflow());
 
   /* -------- Input handler (CTA + footnotes) -------- */
 
@@ -3141,31 +3523,63 @@
     this.value = '';
   });
 
+  const INSERT_BLOCK_ACTIONS = {
+    section: addSectionBlock,
+    text: addTextBlock,
+    cta: addCtaBlock,
+    steps: addStepsBlock,
+    faq: addFaqBlock,
+    quote: addQuoteBlock,
+    divider: addDividerBlock,
+    citation: addCitationBlock,
+    'table-glance': addAtAGlanceTable,
+    'table-bai': addBAITable,
+    'table-custom': openCustomTableModal,
+    image: openImageModal
+  };
+
   document.querySelectorAll('[data-add]').forEach(btn => {
     btn.addEventListener('click', () => {
       const type = btn.dataset.add;
-      if (type === 'section') addSectionBlock();
-      else if (type === 'text') addTextBlock();
-      else if (type === 'cta') addCtaBlock();
-      else if (type === 'steps') addStepsBlock();
-      else if (type === 'faq') addFaqBlock();
-      else if (type === 'quote') addQuoteBlock();
-      else if (type === 'divider') addDividerBlock();
-      else if (type === 'citation') addCitationBlock();
-      else if (type === 'table-glance') addAtAGlanceTable();
-      else if (type === 'table-bai') addBAITable();
-      else if (type === 'table-custom') openCustomTableModal();
-      else if (type === 'image') openImageModal();
+      const action = INSERT_BLOCK_ACTIONS[type];
+      if (typeof action === 'function') action();
     });
   });
 
+  document.querySelectorAll('[data-template]').forEach(btn => {
+    btn.addEventListener('click', () => applyTemplate(btn.dataset.template));
+  });
+
+  document.getElementById('quality-check-btn').addEventListener('click', () => runQualityCheck({ showNoIssues: true }));
+  document.getElementById('help-btn').addEventListener('click', showHelpModal);
+
   document.addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    const key = e.key;
+    if ((key === 'Enter' || key === ' ') && e.target.classList) {
+      if (e.target.classList.contains('delete-icon')) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.target.click();
+        return;
+      }
+      if (e.target.classList.contains('footnote-ref')) {
+        e.preventDefault();
+        scrollToFootnoteNote(e.target.dataset.uniqueId);
+        return;
+      }
+      if (e.target.classList.contains('footnote-return')) {
+        e.preventDefault();
+        scrollToFootnoteRef(e.target.dataset.uniqueId);
+        return;
+      }
+    }
+
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && key.toLowerCase() === 'z') {
       e.preventDefault();
       undo();
     } else if (
       (e.metaKey || e.ctrlKey) &&
-      ((e.shiftKey && e.key.toLowerCase() === 'z') || e.key.toLowerCase() === 'y')
+      ((e.shiftKey && key.toLowerCase() === 'z') || key.toLowerCase() === 'y')
     ) {
       e.preventDefault();
       redo();
@@ -3179,6 +3593,7 @@
   renumberFootnotes();
   initAllTableResizers();
   initHistory();
+  promptRestoreDraft();
 })();
 </script>
 </body>
