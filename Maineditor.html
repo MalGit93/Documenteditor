@@ -2356,15 +2356,72 @@
 
     if (text) {
       e.preventDefault();
+      const normalized = text.replace(/\r\n/g, '\n');
+      const paragraphs = normalized
+        .split(/\n{2,}/)
+        .map(seg => seg.trim())
+        .filter(seg => seg.length);
+
+      if (!paragraphs.length) return;
+
+      const escapeHtml = str => str.replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[ch]);
+
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        const range = sel.getRangeAt(0);
+        const container = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
+        const pageBody = container && container.closest('.page-body');
+
+        if (pageBody) {
+          captureSnapshot();
+          const page = pageBody.closest('.page-container');
+          if (page && page.classList.contains('footnotes-page')) {
+            const inlineHtml = paragraphs
+              .map(seg => escapeHtml(seg).replace(/\n/g, '<br>'))
+              .join('<br><br>');
+            document.execCommand('insertHTML', false, inlineHtml);
+          } else {
+            const blockHtml = paragraphs
+              .map(seg => {
+                const html = escapeHtml(seg).replace(/\n/g, '<br>');
+                return `<p class="body-text" data-deletable="true" contenteditable="true">${html}<span class="delete-icon" contenteditable="false">×</span></p>`;
+              })
+              .join('');
+            document.execCommand('insertHTML', false, blockHtml);
+          }
+          afterChange();
+          return;
+        }
+      }
+
       const body = getActiveContentPageBody();
       if (!body) return;
       captureSnapshot();
-      const p = document.createElement('p');
-      p.className = 'body-text';
-      p.dataset.deletable = 'true';
-      p.contentEditable = 'true';
-      p.textContent = text;
-      body.appendChild(p);
+      paragraphs.forEach(seg => {
+        const p = document.createElement('p');
+        p.className = 'body-text';
+        p.dataset.deletable = 'true';
+        p.contentEditable = 'true';
+        const lines = seg.split('\n');
+        lines.forEach((line, index) => {
+          if (index > 0) p.appendChild(document.createElement('br'));
+          p.appendChild(document.createTextNode(line));
+        });
+        const icon = document.createElement('span');
+        icon.className = 'delete-icon';
+        icon.contentEditable = 'false';
+        icon.textContent = '×';
+        p.appendChild(icon);
+        body.appendChild(p);
+      });
       afterChange();
     }
   }
