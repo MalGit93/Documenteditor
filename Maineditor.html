@@ -1437,13 +1437,20 @@
     return isInEditor(range.commonAncestorContainer);
   }
 
+  function isToolbarActiveElement() {
+    const active = document.activeElement;
+    return active && textToolbar.contains(active);
+  }
+
   function updateTextToolbar() {
     if (!selectionWithinEditor()) {
+      if (isToolbarActiveElement()) return;
       hideTextToolbar();
       return;
     }
     const sel = window.getSelection();
     if (sel.isCollapsed) {
+      if (isToolbarActiveElement()) return;
       hideTextToolbar();
       return;
     }
@@ -1675,9 +1682,21 @@
       if (li) orderedLis[num - 1] = li;
     });
 
-    list.innerHTML = '';
-    orderedLis.forEach(li => {
-      if (li) list.appendChild(li);
+    const desiredOrder = orderedLis.filter(Boolean);
+    desiredOrder.forEach((li, index) => {
+      const currentChild = list.children[index];
+      if (currentChild === li) return;
+      if (currentChild) {
+        list.insertBefore(li, currentChild);
+      } else {
+        list.appendChild(li);
+      }
+    });
+
+    Array.from(list.children).forEach(child => {
+      if (!desiredOrder.includes(child)) {
+        child.remove();
+      }
     });
   }
 
@@ -2703,13 +2722,20 @@
 
     // Text toolbar clicks (formatting)
     if (target.closest('#text-toolbar')) {
-      if (target.dataset.cmd) applyInlineCmd(target.dataset.cmd);
-      else if (target.dataset.action === 'highlight') toggleHighlight();
-      else if (target.dataset.action === 'link') {
-        const input = document.getElementById('link-input');
-        if (input) input.focus();
+      const cmdBtn = target.closest('[data-cmd]');
+      const actionBtn = target.closest('[data-action]');
+      if (cmdBtn && cmdBtn.dataset.cmd) {
+        applyInlineCmd(cmdBtn.dataset.cmd);
+      } else if (actionBtn) {
+        if (actionBtn.dataset.action === 'highlight') {
+          toggleHighlight();
+        } else if (actionBtn.dataset.action === 'link') {
+          const input = document.getElementById('link-input');
+          if (input) input.focus();
+        } else if (actionBtn.dataset.action === 'unlink') {
+          removeLink();
+        }
       }
-      else if (target.dataset.action === 'unlink') removeLink();
       e.stopPropagation();
       return;
     }
