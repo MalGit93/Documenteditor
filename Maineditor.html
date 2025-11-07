@@ -1479,28 +1479,283 @@
     sel.addRange(currentTextRange);
   }
 
-  function applyInlineCmd(cmd) {
+  const INLINE_FORMATS = {
+    bold: { tagName: 'strong' },
+    italic: { tagName: 'em' },
+    underline: { tagName: 'u' }
+  };
+
+  function elementMatchesFormat(el, format) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+    if (el.tagName.toLowerCase() !== format.tagName.toLowerCase()) return false;
+    if (format.className && !el.classList.contains(format.className)) return false;
+    if (format.attributes) {
+      for (const [key, value] of Object.entries(format.attributes)) {
+        if (el.getAttribute(key) !== value) return false;
+      }
+    }
+    return true;
+  }
+
+  function createFormatElement(format) {
+    const el = document.createElement(format.tagName);
+    if (format.className) el.classList.add(format.className);
+    if (format.attributes) {
+      for (const [key, value] of Object.entries(format.attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    return el;
+  }
+
+  function splitTextBoundaries(range) {
+    if (range.endContainer.nodeType === Node.TEXT_NODE) {
+      const endNode = range.endContainer;
+      if (range.endOffset > 0 && range.endOffset < endNode.length) {
+        endNode.splitText(range.endOffset);
+      }
+    }
+    if (range.startContainer.nodeType === Node.TEXT_NODE) {
+      const startNode = range.startContainer;
+      if (range.startOffset > 0 && range.startOffset < startNode.length) {
+        const newNode = startNode.splitText(range.startOffset);
+        range.setStart(newNode, 0);
+      }
+    }
+  }
+
+  function splitElementAt(element, offset) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) return null;
+    const length = element.childNodes.length;
+    if (offset <= 0 || offset >= length) return null;
+    const clone = element.cloneNode(false);
+    const parent = element.parentNode;
+    if (!parent) return null;
+    while (element.childNodes.length > offset) {
+      clone.appendChild(element.childNodes[offset]);
+    }
+    parent.insertBefore(clone, element.nextSibling);
+    return clone;
+  }
+
+  function splitMatchingAncestorsAtBoundary(range, format, isStart) {
+    let container = isStart ? range.startContainer : range.endContainer;
+    let offset = isStart ? range.startOffset : range.endOffset;
+
+    if (container.nodeType === Node.TEXT_NODE) {
+      const parent = container.parentNode;
+      if (!parent) return;
+      const index = Array.prototype.indexOf.call(parent.childNodes, container);
+      container = parent;
+      offset = isStart ? index : index + (offset === 0 ? 0 : 1);
+    }
+
+    while (container && container !== editorRoot && container.parentNode) {
+      if (container.nodeType === Node.ELEMENT_NODE && elementMatchesFormat(container, format)) {
+        const clone = splitElementAt(container, offset);
+        if (clone) {
+          if (isStart) {
+            container = clone;
+            offset = 0;
+          } else {
+            offset = container.childNodes.length;
+          }
+        }
+      }
+      const parent = container.parentNode;
+      const idx = Array.prototype.indexOf.call(parent.childNodes, container);
+      offset = isStart ? idx : idx + 1;
+      container = parent;
+    }
+  }
+
+  function getTextNodesInRange(range) {
+    const nodes = [];
+    const walker = document.createTreeWalker(
+      range.commonAncestorContainer,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+          try {
+            return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          } catch (e) {
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+      }
+    );
+    let current;
+    while ((current = walker.nextNode())) {
+      nodes.push(current);
+    }
+    return nodes;
+  }
+
+  function findMatchingAncestor(node, format) {
+    let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    while (el && el !== editorRoot) {
+      if (elementMatchesFormat(el, format)) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function unwrapElement(el) {
+    const parent = el.parentNode;
+    if (!parent) return;
+    while (el.firstChild) {
+      parent.insertBefore(el.firstChild, el);
+    }
+    el.remove();
+  }
+
+  function unwrapMatchingInFragment(root, predicate) {
+    const toUnwrap = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
+    let current;
+    while ((current = walker.nextNode())) {
+      if (predicate(current)) toUnwrap.push(current);
+    }
+    toUnwrap.reverse().forEach(unwrapElement);
+  }
+
+  function getFirstTextNode(node) {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) return node;
+    let child = node.firstChild;
+    while (child) {
+      const found = getFirstTextNode(child);
+      if (found) return found;
+      child = child.nextSibling;
+    }
+    return null;
+  }
+
+  function getLastTextNode(node) {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) return node;
+    let child = node.lastChild;
+    while (child) {
+      const found = getLastTextNode(child);
+      if (found) return found;
+      child = child.previousSibling;
+    }
+    return null;
+  }
+
+  function setSelectionFromInserted(nodes) {
+    if (!nodes.length) return;
+    const sel = window.getSelection();
+    const range = document.createRange();
+    const firstNode = nodes[0];
+    const lastNode = nodes[nodes.length - 1];
+    const startText = getFirstTextNode(firstNode);
+    const endText = getLastTextNode(lastNode);
+    if (startText) {
+      range.setStart(startText, 0);
+    } else {
+      range.setStartBefore(firstNode);
+    }
+    if (endText) {
+      range.setEnd(endText, endText.length);
+    } else {
+      range.setEndAfter(lastNode);
+    }
+    sel.removeAllRanges();
+    sel.addRange(range);
+    currentTextRange = range.cloneRange();
+  }
+
+  function mergeAdjacentFormat(el, format) {
+    let target = el;
+    let prev = target.previousSibling;
+    if (prev && prev.nodeType === Node.ELEMENT_NODE && elementMatchesFormat(prev, format)) {
+      while (target.firstChild) {
+        prev.appendChild(target.firstChild);
+      }
+      target.remove();
+      target = prev;
+    }
+    let next = target.nextSibling;
+    while (next && next.nodeType === Node.ELEMENT_NODE && elementMatchesFormat(next, format)) {
+      while (next.firstChild) {
+        target.appendChild(next.firstChild);
+      }
+      const toRemove = next;
+      next = next.nextSibling;
+      toRemove.remove();
+    }
+    return target;
+  }
+
+  function cleanupEmptyInline(format) {
+    const nodes = editorRoot.querySelectorAll(format.tagName);
+    nodes.forEach(node => {
+      if (!elementMatchesFormat(node, format)) return;
+      if (!node.textContent && node.childNodes.length === 0) {
+        node.remove();
+      }
+    });
+  }
+
+  function toggleInlineFormat(format, options = {}) {
     if (!currentTextRange) return;
     restoreSelection();
-    document.execCommand(cmd, false, null);
-    currentTextRange = window.getSelection().getRangeAt(0).cloneRange();
-    updateTextToolbar();
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return;
+
+    splitTextBoundaries(range);
+    splitMatchingAncestorsAtBoundary(range, format, true);
+    splitMatchingAncestorsAtBoundary(range, format, false);
+
+    const textNodes = getTextNodesInRange(range);
+    if (!textNodes.length) return;
+
+    const shouldRemove = !options.forceApply && !options.unwrapOnly && textNodes.every(node => findMatchingAncestor(node, format));
+    const fragment = range.extractContents();
+
+    if (options.stripExisting) {
+      unwrapMatchingInFragment(fragment, el => elementMatchesFormat(el, format));
+    }
+
+    let insertedNodes = [];
+    if (shouldRemove || options.unwrapOnly) {
+      unwrapMatchingInFragment(fragment, el => elementMatchesFormat(el, format));
+      insertedNodes = Array.from(fragment.childNodes);
+      range.insertNode(fragment);
+    } else {
+      const wrapper = createFormatElement(format);
+      unwrapMatchingInFragment(fragment, el => elementMatchesFormat(el, format));
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+      const merged = mergeAdjacentFormat(wrapper, format);
+      insertedNodes = [merged];
+    }
+
+    cleanupEmptyInline(format);
+    if (insertedNodes.length) {
+      setSelectionFromInserted(insertedNodes);
+    } else {
+      currentTextRange = null;
+    }
+
+    if (options.hideToolbar) hideTextToolbar();
+    else updateTextToolbar();
     scheduleInputSnapshot();
   }
 
+  function applyInlineCmd(cmd) {
+    const format = INLINE_FORMATS[cmd];
+    if (!format) return;
+    toggleInlineFormat(format);
+  }
+
   function toggleHighlight() {
-    if (!currentTextRange || currentTextRange.collapsed) return;
-    restoreSelection();
-    const range = window.getSelection().getRangeAt(0);
-    const mark = document.createElement('mark');
-    mark.className = 'text-highlight';
-    try {
-      range.surroundContents(mark);
-    } catch (e) {
-      document.execCommand('backColor', false, '#fff3b0');
-    }
-    scheduleInputSnapshot();
-    hideTextToolbar();
+    const format = { tagName: 'mark', className: 'text-highlight' };
+    toggleInlineFormat(format, { hideToolbar: true });
   }
 
   function applyParagraphStyle(style) {
@@ -1543,21 +1798,21 @@
     }
     restoreSelection();
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    document.execCommand('createLink', false, url);
-    editorRoot.querySelectorAll('a').forEach(a => {
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-    });
-    scheduleInputSnapshot();
-    hideTextToolbar();
+    const format = {
+      tagName: 'a',
+      attributes: {
+        href: url,
+        target: '_blank',
+        rel: 'noopener noreferrer'
+      }
+    };
+    toggleInlineFormat(format, { forceApply: true, stripExisting: true, hideToolbar: true });
   }
 
   function removeLink() {
     if (!currentTextRange) return;
-    restoreSelection();
-    document.execCommand('unlink', false, null);
-    scheduleInputSnapshot();
-    hideTextToolbar();
+    const format = { tagName: 'a' };
+    toggleInlineFormat(format, { unwrapOnly: true, hideToolbar: true });
   }
 
   /* -------- Footnotes add + renumber -------- */
