@@ -1057,6 +1057,7 @@
       #block-actions,
       #text-toolbar,
       #snackbar,
+      .overflow-indicator,
       .page-controls,
       .page-overlay,
       .modal-backdrop {
@@ -1098,6 +1099,23 @@
 
       [data-deletable="true"] .delete-icon {
         display: none !important;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .toolbar-btn,
+      .page-control-btn,
+      #text-toolbar button,
+      #block-actions button,
+      .page-overlay,
+      #snackbar,
+      .modal-backdrop,
+      .modal-inner {
+        transition: none !important;
+        animation: none !important;
+      }
+
+      html:focus-within {
+        scroll-behavior: auto;
       }
     }
   </style>
@@ -1243,7 +1261,7 @@
 </div>
 
 <!-- Snackbar -->
-<div id="snackbar"></div>
+<div id="snackbar" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Modals -->
 <div id="modal-backdrop" class="modal-backdrop">
