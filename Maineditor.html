@@ -12,6 +12,9 @@
     :root {
       --page-width: 210mm;
       --page-height: 297mm;
+      --page-scale: clamp(0.5, calc((100vw - 48px) / var(--page-width)), 1);
+      --page-width-screen: calc(var(--page-width) * var(--page-scale));
+      --page-height-screen: calc(var(--page-height) * var(--page-scale));
       --page-margin: 12mm;
       --ui-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --transition-fast: 0.16s ease-out;
@@ -272,8 +275,10 @@
     /* Page containers */
     .page-container {
       position: relative;
-      width: 100%;
-      max-width: calc(var(--page-width) * 0.8);
+      width: var(--page-width-screen);
+      max-width: 100%;
+      height: var(--page-height-screen);
+      max-height: var(--page-height-screen);
       background: var(--page-bg);
       color: var(--text-color);
       border: 1px solid var(--page-border);
@@ -282,15 +287,16 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      min-height: 900px;
       overflow: hidden;
     }
 
     .page-body {
       padding: var(--page-margin);
       padding-bottom: 28px;
-      flex: 1;
+      flex: 1 1 auto;
+      min-height: 0;
       position: relative;
+      overflow-y: auto;
     }
 
     .overflow-indicator {
@@ -335,6 +341,7 @@
       border-top: 1px solid var(--page-border);
       background: rgba(0,0,0,0.02);
       font-family: var(--ui-font);
+      flex: 0 0 auto;
     }
 
     /* Page controls */
@@ -1033,6 +1040,12 @@
 
     /* Print styles */
     @media print {
+      :root {
+        --page-scale: 1;
+        --page-width-screen: var(--page-width);
+        --page-height-screen: var(--page-height);
+      }
+
       html,
       body {
         margin: 0;
@@ -1065,15 +1078,17 @@
         box-shadow: none;
         border: none;
         border-radius: 0;
-        width: 100%;
+        width: var(--page-width);
         max-width: none;
-        min-height: auto;
+        height: var(--page-height);
+        max-height: none;
         page-break-after: always;
         background: var(--page-bg);
       }
 
       .page-body {
         padding: var(--page-margin);
+        overflow: visible;
       }
 
       .page-break-avoider {
@@ -1454,7 +1469,9 @@
     const contentHeight = pageBody.scrollHeight;
     const visibleHeight = pageBody.clientHeight;
     const delta = contentHeight - visibleHeight;
-    const buffer = 48;
+    const styles = getComputedStyle(pageBody);
+    const scaleValue = parseFloat(styles.getPropertyValue('--page-scale')) || 1;
+    const buffer = Math.max(24, 48 * scaleValue);
     const warn = delta > -buffer;
     if (warn) {
       pageBody.dataset.overflow = 'true';
