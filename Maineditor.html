@@ -1306,6 +1306,7 @@
       <button class="toolbar-btn" id="quality-check-btn" aria-label="Check brief for placeholders" title="Check brief for placeholders">Check brief</button>
       <button class="toolbar-btn" id="export-json" aria-label="Export JSON">Export JSON</button>
       <button class="toolbar-btn" id="export-text" aria-label="Export plain text">Export text</button>
+      <button class="toolbar-btn" id="export-html" aria-label="Export read-only HTML">Export HTML</button>
       <button class="toolbar-btn" id="import-json" aria-label="Import JSON">Import JSON</button>
       <button class="toolbar-btn" id="print-btn" aria-label="Print or save as PDF">Print / PDF</button>
     </div>
@@ -1562,6 +1563,9 @@
 
   const EMBED_PROVIDER_NAMES = ALLOWED_EMBED_PROVIDERS.map(provider => provider.label);
   const EMBED_PROVIDER_LIST = EMBED_PROVIDER_NAMES.join(', ');
+  const EMBED_PROVIDER_HINT = EMBED_PROVIDER_LIST
+    ? `${EMBED_PROVIDER_LIST}, or any other secure HTTPS iframe`
+    : 'Any secure HTTPS iframe';
 
   function hostMatchesAllowed(host, allowedHost) {
     return host === allowedHost || host.endsWith('.' + allowedHost);
@@ -1767,7 +1771,13 @@
       if (!normalized) return null;
       return { url: normalized, provider };
     }
-    return null;
+    return {
+      url: parsed.toString(),
+      provider: {
+        key: `host:${host}`,
+        label: host
+      }
+    };
   }
 
   function isAllowedEmbedURL(url) {
@@ -1812,6 +1822,9 @@
 
   function getEmbedProviderLabel(key) {
     if (!key) return '';
+    if (key.startsWith('host:')) {
+      return key.slice(5);
+    }
     const found = ALLOWED_EMBED_PROVIDERS.find(provider => provider.key === key);
     return found ? found.label : key;
   }
@@ -3103,7 +3116,7 @@
       body: `
         <label>Embed URL or code</label>
         <textarea id="embed-input" rows="4" placeholder="Paste a secure embed URL or iframe snippet"></textarea>
-        <p class="modal-hint">Supported providers: ${escapeHTML(EMBED_PROVIDER_LIST)}</p>
+        <p class="modal-hint">Supported providers: ${escapeHTML(EMBED_PROVIDER_HINT)}</p>
         <label>Title (for screen readers)</label>
         <input type="text" id="embed-title-input" placeholder="${escapeHTML(EMBED_DEFAULT_TITLE)}" />
       `,
@@ -3116,13 +3129,15 @@
         const details = extractEmbedDetails(rawInput);
 
         if (!details) {
-          showSnackbar(`Embeds must use HTTPS and come from an approved provider (${EMBED_PROVIDER_LIST}). Paste the share link or full embed code — common watch URLs are converted automatically.`);
+          showSnackbar(`Embeds must use HTTPS. Supported providers include ${EMBED_PROVIDER_HINT}. Paste the share link or full embed code — common watch URLs are converted automatically.`);
           return;
         }
 
         const inferredTitle = details.inferredTitle || '';
         const finalTitle = manualTitle || inferredTitle;
         const providerKey = details.provider ? details.provider.key : '';
+        const providerLabel = details.provider ? details.provider.label : '';
+        const isCustomHost = providerKey.startsWith('host:');
 
         if (!manualTitle && inferredTitle && titleInput) {
           titleInput.value = inferredTitle;
@@ -3157,12 +3172,18 @@
           afterChange();
           closeModal();
           ensureBlockVisible(existingBlock);
+          if (isCustomHost && providerLabel) {
+            showSnackbar(`Updated embed from ${providerLabel}. Review this custom host before publishing.`);
+          }
           return;
         }
 
         const newBlock = addEmbedBlock({ url: details.url, title: finalTitle, provider: providerKey });
         if (newBlock) {
           closeModal();
+          if (isCustomHost && providerLabel) {
+            showSnackbar(`Added external embed from ${providerLabel}. Review before sharing.`);
+          }
         } else {
           showSnackbar('Select a page to add the embed.');
         }
@@ -3834,7 +3855,7 @@
       if (src) {
         const normalized = normalizeEmbedURL(src);
         if (!normalized) {
-          issues.add(`Update embeds to use approved providers (${EMBED_PROVIDER_LIST}).`);
+          issues.add(`Update embeds to use secure HTTPS URLs (e.g. ${EMBED_PROVIDER_HINT}).`);
         } else {
           if (normalized.url !== src && iframe) {
             iframe.setAttribute('src', normalized.url);
@@ -3982,6 +4003,79 @@
     return text;
   }
 
+  function generateReadOnlyHTML() {
+    const theme = getCurrentTheme();
+    const clone = editorRoot.cloneNode(true);
+    const selectorsToRemove = [
+      '.page-controls',
+      '.page-overlay',
+      '.delete-icon',
+      '.table-controls',
+      '.cta-type-switch',
+      '.steps-add',
+      '.faq-add',
+      '.image-size-controls',
+      '.embed-toolbar',
+      '.col-resize-handle',
+      '.footnote-return',
+      '.overflow-indicator'
+    ];
+    if (selectorsToRemove.length) {
+      clone.querySelectorAll(selectorsToRemove.join(',')).forEach(el => el.remove());
+    }
+
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    clone.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex'));
+    clone.querySelectorAll('[data-placeholder]').forEach(el => el.removeAttribute('data-placeholder'));
+    clone.querySelectorAll('[data-deletable]').forEach(el => el.removeAttribute('data-deletable'));
+    clone.querySelectorAll('[data-embed-src]').forEach(el => el.removeAttribute('data-embed-src'));
+
+    clone.querySelectorAll('iframe, video').forEach(embed => {
+      if (!embed.getAttribute('loading')) {
+        embed.setAttribute('loading', 'lazy');
+      }
+    });
+
+    const fonts = Array.from(document.head.querySelectorAll('link[rel="preconnect"], link[rel="stylesheet"]'))
+      .map(link => link.outerHTML)
+      .join('\n      ');
+    const styles = Array.from(document.head.querySelectorAll('style'))
+      .map(style => style.innerHTML)
+      .join('\n');
+
+    const docTitleEl = editorRoot.querySelector('.doc-title');
+    const exportTitle = docTitleEl ? (docTitleEl.textContent || '').trim() : '';
+    const safeTitle = exportTitle ? escapeHTML(exportTitle) : 'Executive Brief';
+    const themeClass = theme === 'ft' ? 'theme-ft' : 'theme-iga';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${safeTitle} (Read-only)</title>
+  ${fonts}
+  <style>
+${styles}
+  </style>
+  <style>
+    body.read-only-export #app-header,
+    body.read-only-export #block-actions,
+    body.read-only-export #text-toolbar,
+    body.read-only-export #snackbar { display: none !important; }
+    body.read-only-export #editor-root-wrapper { padding: 32px 0 64px; }
+  </style>
+</head>
+<body class="${themeClass} read-only-export">
+  <div id="app" class="read-only-export">
+    <div id="editor-root-wrapper">
+      <main id="editor-root">${clone.innerHTML}</main>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
   function exportJSON() {
     const performExport = () => {
       const theme = getCurrentTheme();
@@ -4023,6 +4117,24 @@
       a.remove();
       URL.revokeObjectURL(url);
       showSnackbar('Plain text exported');
+    };
+
+    runQualityCheck({ onContinue: performExport });
+  }
+
+  function exportReadOnlyHTML() {
+    const performExport = () => {
+      const html = generateReadOnlyHTML();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'executive-brief.html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showSnackbar('HTML exported');
     };
 
     runQualityCheck({ onContinue: performExport });
@@ -4404,6 +4516,7 @@
   document.getElementById('redo-btn').addEventListener('click', redo);
   document.getElementById('export-json').addEventListener('click', exportJSON);
   document.getElementById('export-text').addEventListener('click', exportPlainText);
+  document.getElementById('export-html').addEventListener('click', exportReadOnlyHTML);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   document.getElementById('print-btn').addEventListener('click', () => window.print());
 
