@@ -751,17 +751,17 @@
       color: #111827;
     }
 
-	.image-block img {
-	  display: block;
-	  margin: 0 auto;
-	  width: 100%;
-	  height: auto;
-	  max-height: 260px;         /* default cap */
-	  object-fit: contain;
-}
-	.image-size-s img { width: 40%; }
-	.image-size-m img { width: 65%; }
-	.image-size-l img { width: 100%; max-height: none; }
+    .image-block img {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .image-size-s img { max-width: 40%; max-height: 180px; }
+    .image-size-m img { max-width: 65%; max-height: 260px; }
+    .image-size-l img { max-width: 100%; max-height: 360px; }
 
     .image-caption {
       margin-top: 6px;
@@ -1247,6 +1247,8 @@
   <button data-cmd="bold"><b>B</b></button>
   <button data-cmd="italic"><i>I</i></button>
   <button data-cmd="underline"><u>U</u></button>
+  <button data-cmd="insertUnorderedList">•</button>
+  <button data-cmd="insertOrderedList">1.</button>
   <button data-action="highlight">HL</button>
   <select id="paragraph-style">
     <option value="">¶</option>
