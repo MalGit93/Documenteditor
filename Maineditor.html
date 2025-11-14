@@ -1602,6 +1602,33 @@
     return (hours * 3600) + (minutes * 60) + seconds;
   }
 
+  // YouTube share links often include session or analytics parameters (e.g. `si`)
+  // that cause "Error 153" when used with the privacy-friendly embed endpoint.
+  // Restrict the query string to the documented player options so exported briefs
+  // keep working for nocookie embeds while still allowing useful configuration.
+  const YOUTUBE_EMBED_ALLOWED_PARAMS = new Set([
+    'start',
+    'end',
+    'list',
+    'index',
+    'playlist',
+    'controls',
+    'autoplay',
+    'mute',
+    'loop',
+    'modestbranding',
+    'playsinline',
+    'rel',
+    'fs',
+    'color',
+    'enablejsapi',
+    'origin',
+    'widget_referrer',
+    'cc_load_policy',
+    'iv_load_policy',
+    'hl'
+  ]);
+
   function normalizeYouTubeURL(parsed) {
     if (!parsed) return '';
     const host = parsed.hostname.toLowerCase();
@@ -1627,17 +1654,30 @@
 
     const cleanedParams = new URLSearchParams();
     searchParams.forEach((value, key) => {
-      if (key.toLowerCase() === 'v') return;
-      cleanedParams.append(key, value);
-    });
-
-    if (cleanedParams.has('t') && !cleanedParams.has('start')) {
-      const seconds = parseYouTubeTimestamp(cleanedParams.get('t'));
-      if (!Number.isNaN(seconds) && seconds > 0) {
-        cleanedParams.delete('t');
-        cleanedParams.set('start', String(seconds));
+      const lowerKey = key.toLowerCase();
+      if (lowerKey === 'v') return;
+      if (lowerKey === 't') {
+        const seconds = parseYouTubeTimestamp(value);
+        if (!Number.isNaN(seconds) && seconds > 0) {
+          if (!cleanedParams.has('start')) {
+            cleanedParams.set('start', String(seconds));
+          }
+        }
+        return;
       }
-    }
+      if (!YOUTUBE_EMBED_ALLOWED_PARAMS.has(lowerKey)) {
+        return;
+      }
+      if (lowerKey === 'start' || lowerKey === 'end') {
+        const parsedValue = parseInt(value, 10);
+        if (Number.isNaN(parsedValue) || parsedValue < 0) {
+          return;
+        }
+        cleanedParams.set(lowerKey, String(parsedValue));
+        return;
+      }
+      cleanedParams.set(lowerKey, value);
+    });
 
     const baseHost = 'www.youtube-nocookie.com';
     const baseUrl = `https://${baseHost}/embed/${encodeURIComponent(videoId)}`;
