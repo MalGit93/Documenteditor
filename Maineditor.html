@@ -791,6 +791,103 @@
       text-align: center;
     }
 
+    /* Embeds */
+    .embed-block {
+      margin: 10px 0;
+      padding: 6px;
+      border-radius: var(--border-radius-md);
+      border: 1px solid var(--divider-color);
+      background: var(--image-bg);
+      font-size: 10px;
+    }
+
+    .embed-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-family: var(--ui-font);
+    }
+
+    .embed-size-controls {
+      display: inline-flex;
+      gap: 2px;
+    }
+
+    .embed-size-controls button {
+      border: none;
+      background: transparent;
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 999px;
+      cursor: pointer;
+      color: #6b7280;
+    }
+
+    .embed-size-controls button.active {
+      background: rgba(17,24,39,0.08);
+      color: #111827;
+    }
+
+    .embed-edit {
+      border: none;
+      background: rgba(17,24,39,0.08);
+      color: #111827;
+      font-size: 9px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .embed-edit:hover {
+      background: rgba(17,24,39,0.16);
+    }
+
+    .embed-wrapper {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%;
+      background: #000;
+      border-radius: var(--border-radius-sm);
+      overflow: hidden;
+      margin: 0 auto;
+    }
+
+    .embed-wrapper iframe,
+    .embed-wrapper video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
+    .embed-size-s .embed-wrapper {
+      max-width: 45%;
+    }
+
+    .embed-size-m .embed-wrapper {
+      max-width: 70%;
+    }
+
+    .embed-size-l .embed-wrapper {
+      max-width: 100%;
+    }
+
+    .embed-title,
+    .embed-caption {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted-text);
+      text-align: center;
+    }
+
+    .embed-title {
+      font-weight: 600;
+    }
+
     /* Footnotes page */
     .footnotes-page .page-body {
       padding-top: 18px;
@@ -1028,6 +1125,13 @@
       outline: none;
     }
 
+    .modal-inner .modal-hint {
+      font-size: 9px;
+      color: #94a3b8;
+      margin: -2px 0 6px;
+      line-height: 1.4;
+    }
+
     .modal-actions {
       display: flex;
       justify-content: flex-end;
@@ -1176,6 +1280,7 @@
       <button class="toolbar-btn" data-add="table-glance" aria-label="Insert at-a-glance table">At-a-glance</button>
       <button class="toolbar-btn" data-add="table-bai" aria-label="Insert before after impact table">Before/After/Impact</button>
       <button class="toolbar-btn" data-add="table-custom" aria-label="Insert custom table">Custom table</button>
+      <button class="toolbar-btn" data-add="embed" aria-label="Insert embed">Embed</button>
       <button class="toolbar-btn" data-add="image" aria-label="Insert image">Image</button>
     </div>
 
@@ -1329,7 +1434,80 @@
     'What we need them to do…',
     'Key dates…',
     'Add an explanatory caption…',
+    'Add a descriptive caption…',
+    'Describe this embed for screen readers…',
     'Your footnote text here.'
+  ];
+
+  const EMBED_DEFAULT_CAPTION = 'Add a descriptive caption…';
+  const EMBED_DEFAULT_TITLE = 'Describe this embed for screen readers…';
+  const ALLOWED_EMBED_PROVIDERS = [
+    {
+      key: 'youtube',
+      label: 'YouTube',
+      hosts: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com', 'youtu.be'],
+      normalize: normalizeYouTubeURL
+    },
+    {
+      key: 'vimeo',
+      label: 'Vimeo',
+      hosts: ['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'],
+      normalize: normalizeVimeoURL
+    },
+    {
+      key: 'spotify',
+      label: 'Spotify',
+      hosts: ['open.spotify.com', 'spotify.com'],
+      normalize: normalizeSpotifyURL
+    },
+    {
+      key: 'datawrapper',
+      label: 'Datawrapper',
+      hosts: ['datawrapper.dwcdn.net', 'datawrapper.de'],
+      normalize: url => normalizeBasicEmbedURL(url, { requirePath: true })
+    },
+    {
+      key: 'flourish',
+      label: 'Flourish',
+      hosts: ['flo.uri.sh', 'public.flourish.studio'],
+      normalize: url => normalizeBasicEmbedURL(url, { requirePath: true })
+    },
+    {
+      key: 'tableau',
+      label: 'Tableau Public',
+      hosts: ['public.tableau.com'],
+      normalize: url => normalizeBasicEmbedURL(url, { requirePath: true })
+    },
+    {
+      key: 'lookerstudio',
+      label: 'Looker Studio',
+      hosts: ['lookerstudio.google.com', 'datastudio.google.com'],
+      normalize: url => normalizeBasicEmbedURL(url, { requirePath: true, pathIncludes: '/embed/' })
+    },
+    {
+      key: 'googlemaps',
+      label: 'Google Maps',
+      hosts: ['www.google.com'],
+      normalize: url => normalizeGoogleMapsURL(url)
+    },
+    {
+      key: 'observable',
+      label: 'Observable',
+      hosts: ['observablehq.com'],
+      normalize: url => normalizeBasicEmbedURL(url, { pathIncludes: '/embed/' })
+    },
+    {
+      key: 'powerbi',
+      label: 'Microsoft Power BI',
+      hosts: ['app.powerbi.com'],
+      normalize: url => normalizeBasicEmbedURL(url, { requirePath: true, pathIncludes: '/view' })
+    },
+    {
+      key: 'googledocs',
+      label: 'Google Docs & Slides',
+      hosts: ['docs.google.com'],
+      normalize: url => normalizeBasicEmbedURL(url, { requirePath: true, pathIncludes: '/embed' })
+    }
   ];
 
   const INTERNAL_MARKER_START = '<!--EBD_INTERNAL_START-->';
@@ -1370,6 +1548,272 @@
     } catch (err) {
       /* noop */
     }
+  }
+
+  function escapeHTML(str) {
+    return String(str || '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[ch] || ch));
+  }
+
+  const EMBED_PROVIDER_NAMES = ALLOWED_EMBED_PROVIDERS.map(provider => provider.label);
+  const EMBED_PROVIDER_LIST = EMBED_PROVIDER_NAMES.join(', ');
+
+  function hostMatchesAllowed(host, allowedHost) {
+    return host === allowedHost || host.endsWith('.' + allowedHost);
+  }
+
+  function filterParams(searchParams, allowedKeys) {
+    const params = new URLSearchParams();
+    allowedKeys.forEach(key => {
+      if (searchParams.has(key)) {
+        params.set(key, searchParams.get(key));
+      }
+    });
+    return params.toString();
+  }
+
+  function parseYouTubeTimestamp(value) {
+    if (!value) return null;
+    const trimmed = String(value).trim().toLowerCase();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) {
+      return parseInt(trimmed, 10);
+    }
+    const hmsMatch = trimmed.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
+    if (hmsMatch && (hmsMatch[1] || hmsMatch[2] || hmsMatch[3])) {
+      let total = 0;
+      if (hmsMatch[1]) total += parseInt(hmsMatch[1], 10) * 3600;
+      if (hmsMatch[2]) total += parseInt(hmsMatch[2], 10) * 60;
+      if (hmsMatch[3]) total += parseInt(hmsMatch[3], 10);
+      return total;
+    }
+    if (trimmed.includes(':')) {
+      const segments = trimmed.split(':').map(part => part.trim()).filter(Boolean);
+      if (!segments.length) return null;
+      let multiplier = 1;
+      let seconds = 0;
+      while (segments.length) {
+        const segment = segments.pop();
+        const num = parseInt(segment, 10);
+        if (Number.isNaN(num)) return null;
+        seconds += num * multiplier;
+        multiplier *= 60;
+      }
+      return seconds;
+    }
+    return null;
+  }
+
+  function normalizeBasicEmbedURL(urlObj, { requirePath = false, pathIncludes = null } = {}) {
+    if (!urlObj || urlObj.protocol !== 'https:') return null;
+    if (requirePath && (!urlObj.pathname || urlObj.pathname === '/')) return null;
+    if (pathIncludes && !urlObj.pathname.includes(pathIncludes)) return null;
+    return urlObj.toString();
+  }
+
+  function normalizeGoogleMapsURL(urlObj) {
+    if (!urlObj || urlObj.protocol !== 'https:') return null;
+    if (!urlObj.pathname.startsWith('/maps/')) return null;
+    if (!urlObj.pathname.includes('/embed')) return null;
+    return urlObj.toString();
+  }
+
+  function normalizeYouTubeURL(urlObj) {
+    if (!urlObj || urlObj.protocol !== 'https:') return null;
+    const host = urlObj.hostname.toLowerCase();
+    const path = urlObj.pathname || '';
+    const params = urlObj.searchParams || new URLSearchParams();
+
+    const allowedParams = ['si', 'start', 'end', 'list', 'loop', 'playlist', 'autoplay', 'mute', 'controls', 'modestbranding', 'rel', 'fs', 'cc_load_policy', 'cc_lang_pref', 'color', 'playsinline', 'enablejsapi', 'origin', 'widget_referrer', 'index', 'iv_load_policy', 'hl'];
+
+    const buildEmbedURL = (videoId, useNoCookie = false) => {
+      if (!videoId) return null;
+      const baseHost = useNoCookie ? 'www.youtube-nocookie.com' : 'www.youtube.com';
+      const embed = new URL(`https://${baseHost}/embed/${videoId}`);
+      const filtered = filterParams(params, allowedParams);
+      if (filtered) embed.search = filtered;
+      if (!embed.searchParams.has('start') && params.has('t')) {
+        const parsedStart = parseYouTubeTimestamp(params.get('t'));
+        if (parsedStart !== null && !Number.isNaN(parsedStart)) {
+          embed.searchParams.set('start', String(parsedStart));
+        }
+      }
+      return embed.toString();
+    };
+
+    const useNoCookie = host.includes('nocookie');
+
+    if (host === 'youtu.be') {
+      const videoId = path.replace(/^\//, '').split(/[?&#]/)[0];
+      return buildEmbedURL(videoId, false);
+    }
+
+    if (path.startsWith('/embed/')) {
+      const embedPath = path.split('/').filter(Boolean);
+      const videoId = embedPath[1] || embedPath[0];
+      return buildEmbedURL(videoId, useNoCookie);
+    }
+
+    if (path.startsWith('/watch')) {
+      const videoId = params.get('v');
+      return buildEmbedURL(videoId, useNoCookie);
+    }
+
+    if (path.startsWith('/shorts/')) {
+      const segments = path.split('/').filter(Boolean);
+      const videoId = segments[1] || segments[0];
+      return buildEmbedURL(videoId, useNoCookie);
+    }
+
+    if (path.startsWith('/live/')) {
+      const segments = path.split('/').filter(Boolean);
+      const videoId = segments[1] || segments[0];
+      return buildEmbedURL(videoId, useNoCookie);
+    }
+
+    if (path.startsWith('/playlist')) {
+      const listId = params.get('list');
+      if (listId) {
+        const embed = new URL(`https://${useNoCookie ? 'www.youtube-nocookie.com' : 'www.youtube.com'}/embed/videoseries`);
+        const filtered = filterParams(params, allowedParams);
+        if (filtered) {
+          embed.search = filtered;
+        } else {
+          embed.search = `list=${listId}`;
+        }
+        return embed.toString();
+      }
+    }
+
+    const directMatch = path.match(/\/([A-Za-z0-9_-]{6,})$/);
+    if (directMatch) {
+      return buildEmbedURL(directMatch[1], useNoCookie);
+    }
+
+    return null;
+  }
+
+  function normalizeVimeoURL(urlObj) {
+    if (!urlObj || urlObj.protocol !== 'https:') return null;
+    const host = urlObj.hostname.toLowerCase();
+    const params = urlObj.searchParams || new URLSearchParams();
+    const allowedParams = ['h', 'badge', 'autopause', 'autoplay', 'background', 'loop', 'muted', 'playsinline', 'portrait', 'title', 'byline', 'color'];
+
+    const toEmbed = (videoId) => {
+      if (!videoId) return null;
+      const embed = new URL(`https://player.vimeo.com/video/${videoId}`);
+      const filtered = filterParams(params, allowedParams);
+      if (filtered) embed.search = filtered;
+      return embed.toString();
+    };
+
+    if (host === 'player.vimeo.com') {
+      if (!urlObj.pathname.startsWith('/video/')) return null;
+      const segments = urlObj.pathname.split('/').filter(Boolean);
+      const videoId = segments[1] || segments[0];
+      const embed = new URL(`https://player.vimeo.com/${segments.join('/')}`);
+      const filtered = filterParams(params, allowedParams);
+      if (filtered) embed.search = filtered;
+      return embed.toString();
+    }
+
+    const match = urlObj.pathname.match(/\/(\d+)/);
+    return match ? toEmbed(match[1]) : null;
+  }
+
+  function normalizeSpotifyURL(urlObj) {
+    if (!urlObj || urlObj.protocol !== 'https:') return null;
+    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+    if (!pathSegments.length) return null;
+    let embedPath = '';
+    if (pathSegments[0] === 'embed' || pathSegments[0] === 'embed-podcast') {
+      embedPath = '/' + pathSegments.join('/');
+    } else {
+      embedPath = '/embed/' + pathSegments.join('/');
+    }
+    const embed = new URL(`https://open.spotify.com${embedPath}`);
+    const allowedParams = ['si', 'nd', 'utm_source'];
+    const filtered = filterParams(urlObj.searchParams || new URLSearchParams(), allowedParams);
+    if (filtered) embed.search = filtered;
+    return embed.toString();
+  }
+
+  function normalizeEmbedURL(url) {
+    if (!url || typeof url !== 'string') return null;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    let normalizedInput = trimmed;
+    if (normalizedInput.startsWith('//')) {
+      normalizedInput = 'https:' + normalizedInput;
+    }
+    if (!/^https?:/i.test(normalizedInput)) return null;
+    let parsed;
+    try {
+      parsed = new URL(normalizedInput);
+    } catch (err) {
+      return null;
+    }
+    if (parsed.protocol !== 'https:') return null;
+    const host = parsed.hostname.toLowerCase();
+    for (const provider of ALLOWED_EMBED_PROVIDERS) {
+      const matches = provider.hosts.some(allowedHost => hostMatchesAllowed(host, allowedHost));
+      if (!matches) continue;
+      const normalized = provider.normalize ? provider.normalize(parsed) : parsed.toString();
+      if (!normalized) return null;
+      return { url: normalized, provider };
+    }
+    return null;
+  }
+
+  function isAllowedEmbedURL(url) {
+    return !!normalizeEmbedURL(url);
+  }
+
+  function extractEmbedDetails(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    let normalized = null;
+    if (trimmed.includes('<')) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(trimmed, 'text/html');
+        const firstEmbed = doc.querySelector('iframe, video, source');
+        if (firstEmbed) {
+          const src = firstEmbed.getAttribute('src');
+          if (src) {
+            normalized = normalizeEmbedURL(src);
+            if (!normalized) return null;
+            return {
+              url: normalized.url,
+              provider: normalized.provider,
+              inferredTitle: (firstEmbed.getAttribute('title') || '').trim()
+            };
+          }
+        }
+      } catch (err) {
+        return null;
+      }
+      return null;
+    }
+    normalized = normalizeEmbedURL(trimmed);
+    if (!normalized) return null;
+    return {
+      url: normalized.url,
+      provider: normalized.provider,
+      inferredTitle: ''
+    };
+  }
+
+  function getEmbedProviderLabel(key) {
+    if (!key) return '';
+    const found = ALLOWED_EMBED_PROVIDERS.find(provider => provider.key === key);
+    return found ? found.label : key;
   }
 
   function promptRestoreDraft() {
@@ -2599,6 +3043,140 @@
     });
   }
 
+  function createEmbedBlock({ url, title = '', caption = '', size = 'm', provider = '' } = {}) {
+    const normalizedSize = ['s', 'm', 'l'].includes(size) ? size : 'm';
+    const safeUrl = escapeHTML(url);
+    const safeTitleAttr = escapeHTML(title);
+    const titleAttribute = title ? ` title="${safeTitleAttr}"` : '';
+    const providerAttr = provider ? ` data-embed-provider="${escapeHTML(provider)}"` : '';
+    const toolbarButtons = ['s', 'm', 'l'].map(key => {
+      const label = key.toUpperCase();
+      const active = key === normalizedSize ? ' class="active"' : '';
+      return `<button data-size="${key}"${active}>${label}</button>`;
+    }).join('');
+    const block = document.createElement('div');
+    block.className = `embed-block embed-size-${normalizedSize} page-break-avoider`;
+    block.dataset.deletable = 'true';
+    block.dataset.embedSrc = url;
+    if (provider) {
+      block.dataset.embedProvider = provider;
+    } else {
+      delete block.dataset.embedProvider;
+    }
+    block.innerHTML = `
+      ${DELETE_ICON_HTML}
+      <div class="embed-toolbar" contenteditable="false">
+        <div class="embed-size-controls">
+          ${toolbarButtons}
+        </div>
+        <button type="button" class="embed-edit">Change embed</button>
+      </div>
+      <div class="embed-wrapper">
+        <iframe src="${safeUrl}"${titleAttribute} loading="lazy"${providerAttr}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+      <div class="embed-title" contenteditable="true">${title ? escapeHTML(title) : escapeHTML(EMBED_DEFAULT_TITLE)}</div>
+      <div class="embed-caption" contenteditable="true">${caption ? escapeHTML(caption) : escapeHTML(EMBED_DEFAULT_CAPTION)}</div>
+    `;
+    return block;
+  }
+
+  function addEmbedBlock({ url, title = '', caption = '', size = 'm', provider = '' } = {}) {
+    const body = getActiveContentPageBody();
+    if (!body) return null;
+    captureSnapshot();
+    const block = createEmbedBlock({ url, title, caption, size, provider });
+    body.appendChild(block);
+    afterChange();
+    ensureBlockVisible(block);
+    return block;
+  }
+
+  function openEmbedModal(existingBlock = null) {
+    const iframe = existingBlock ? existingBlock.querySelector('iframe') : null;
+    const existingUrl = existingBlock ? (existingBlock.dataset.embedSrc || (iframe && iframe.getAttribute('src')) || '') : '';
+    const existingTitleAttr = iframe ? (iframe.getAttribute('title') || '') : '';
+
+    openModal({
+      title: existingBlock ? 'Update embed' : 'Add embed',
+      body: `
+        <label>Embed URL or code</label>
+        <textarea id="embed-input" rows="4" placeholder="Paste a secure embed URL or iframe snippet"></textarea>
+        <p class="modal-hint">Supported providers: ${escapeHTML(EMBED_PROVIDER_LIST)}</p>
+        <label>Title (for screen readers)</label>
+        <input type="text" id="embed-title-input" placeholder="${escapeHTML(EMBED_DEFAULT_TITLE)}" />
+      `,
+      confirmLabel: existingBlock ? 'Update' : 'Add',
+      onConfirm: () => {
+        const inputField = modalInner.querySelector('#embed-input');
+        const titleInput = modalInner.querySelector('#embed-title-input');
+        const rawInput = inputField ? inputField.value.trim() : '';
+        const manualTitle = titleInput ? titleInput.value.trim() : '';
+        const details = extractEmbedDetails(rawInput);
+
+        if (!details) {
+          showSnackbar(`Embeds must use HTTPS and come from an approved provider (${EMBED_PROVIDER_LIST}). Paste the share link or full embed code — common watch URLs are converted automatically.`);
+          return;
+        }
+
+        const inferredTitle = details.inferredTitle || '';
+        const finalTitle = manualTitle || inferredTitle;
+        const providerKey = details.provider ? details.provider.key : '';
+
+        if (!manualTitle && inferredTitle && titleInput) {
+          titleInput.value = inferredTitle;
+        }
+
+        if (existingBlock) {
+          captureSnapshot();
+          const blockIframe = existingBlock.querySelector('iframe');
+          if (blockIframe) {
+            blockIframe.setAttribute('src', details.url);
+            if (finalTitle) {
+              blockIframe.setAttribute('title', finalTitle);
+            } else {
+              blockIframe.removeAttribute('title');
+            }
+            if (providerKey) {
+              blockIframe.setAttribute('data-embed-provider', providerKey);
+            } else {
+              blockIframe.removeAttribute('data-embed-provider');
+            }
+          }
+          existingBlock.dataset.embedSrc = details.url;
+          if (providerKey) {
+            existingBlock.dataset.embedProvider = providerKey;
+          } else {
+            delete existingBlock.dataset.embedProvider;
+          }
+          const titleEl = existingBlock.querySelector('.embed-title');
+          if (titleEl) {
+            titleEl.textContent = finalTitle ? finalTitle : EMBED_DEFAULT_TITLE;
+          }
+          afterChange();
+          closeModal();
+          ensureBlockVisible(existingBlock);
+          return;
+        }
+
+        const newBlock = addEmbedBlock({ url: details.url, title: finalTitle, provider: providerKey });
+        if (newBlock) {
+          closeModal();
+        } else {
+          showSnackbar('Select a page to add the embed.');
+        }
+      },
+      onCancel: closeModal
+    });
+
+    const urlField = modalInner.querySelector('#embed-input');
+    const titleField = modalInner.querySelector('#embed-title-input');
+    if (urlField) urlField.value = existingUrl;
+    if (titleField) titleField.value = existingTitleAttr;
+    if (urlField) urlField.focus();
+  }
+
   function addImageBlockWithURL(url) {
     if (!url) return;
     const body = getActiveContentPageBody();
@@ -2842,11 +3420,15 @@
   function sanitizeExternalHTML(html) {
     const allowedTags = new Set([
       'P','H1','H2','H3','H4','UL','OL','LI','A','STRONG','EM',
-      'B','I','TABLE','TBODY','THEAD','TR','TD','TH','BLOCKQUOTE','BR','SPAN'
+      'B','I','TABLE','TBODY','THEAD','TR','TD','TH','BLOCKQUOTE','BR','SPAN',
+      'IFRAME','VIDEO','SOURCE'
     ]);
     const allowedAttrs = {
       'A': ['href'],
-      'TD': [], 'TH': [], 'TABLE': [], 'TR': [], 'P': [], 'BLOCKQUOTE': [], 'SPAN': []
+      'TD': [], 'TH': [], 'TABLE': [], 'TR': [], 'P': [], 'BLOCKQUOTE': [], 'SPAN': [],
+      'IFRAME': ['src','title','allow','allowfullscreen','loading','referrerpolicy','style','width','height','frameborder','sandbox'],
+      'VIDEO': ['src','controls','loop','muted','playsinline','poster','preload','title','width','height','style'],
+      'SOURCE': ['src','type']
     };
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -2864,17 +3446,51 @@
       }
       const el = document.createElement(node.tagName.toLowerCase());
       const allowed = allowedAttrs[node.tagName] || [];
+      const tagName = node.tagName;
+      let hasAllowedSrc = false;
       for (let attr of Array.from(node.attributes)) {
-        if (attr.name.toLowerCase() === 'href' && /^https?:\/\//i.test(attr.value)) {
+        const name = attr.name.toLowerCase();
+        if (name === 'href' && /^https?:\/\//i.test(attr.value)) {
           el.setAttribute('href', attr.value);
-        } else if (allowed.includes(attr.name.toLowerCase())) {
-          el.setAttribute(attr.name, attr.value);
+        } else if (name === 'src') {
+          if (tagName === 'IFRAME') {
+            const normalized = normalizeEmbedURL(attr.value);
+            if (normalized) {
+              el.setAttribute('src', normalized.url);
+              if (normalized.provider) {
+                el.setAttribute('data-embed-provider', normalized.provider.key);
+              }
+              hasAllowedSrc = true;
+            }
+          } else if (tagName === 'VIDEO' || tagName === 'SOURCE') {
+            const normalized = normalizeEmbedURL(attr.value);
+            if (normalized) {
+              el.setAttribute('src', normalized.url);
+              hasAllowedSrc = true;
+            }
+          }
+        } else if (allowed.includes(name)) {
+          if (attr.value === '') {
+            el.setAttribute(attr.name, attr.value);
+          } else {
+            el.setAttribute(attr.name, attr.value);
+          }
         }
       }
       node.childNodes.forEach(child => {
         const c = cleanse(child);
         if (c) el.appendChild(c);
       });
+      if (tagName === 'IFRAME' && !hasAllowedSrc) {
+        return document.createDocumentFragment();
+      }
+      if (tagName === 'SOURCE' && !hasAllowedSrc) {
+        return document.createDocumentFragment();
+      }
+      if (tagName === 'VIDEO') {
+        const hasSourceChild = hasAllowedSrc || el.querySelector('source');
+        if (!hasSourceChild) return document.createDocumentFragment();
+      }
       return el;
     }
 
@@ -3165,7 +3781,7 @@
   function collectQualityIssues() {
     const issues = new Set();
     const placeholderHits = new Set();
-    const scanNodes = editorRoot.querySelectorAll('[data-deletable="true"], td, th, .steps-block li, .faq-block .faq-q, .faq-block .faq-a, .image-caption');
+    const scanNodes = editorRoot.querySelectorAll('[data-deletable="true"], td, th, .steps-block li, .faq-block .faq-q, .faq-block .faq-a, .image-caption, .embed-caption, .embed-title');
     scanNodes.forEach(node => {
       const text = (node.textContent || '').trim();
       if (!text) return;
@@ -3198,6 +3814,44 @@
       }
       if (!captionText || captionText === 'Add an explanatory caption…') {
         issues.add('Add explanatory captions for images.');
+      }
+    });
+
+    editorRoot.querySelectorAll('.embed-block').forEach(block => {
+      const captionEl = block.querySelector('.embed-caption');
+      const titleEl = block.querySelector('.embed-title');
+      const iframe = block.querySelector('iframe');
+      const captionText = captionEl ? captionEl.textContent.trim() : '';
+      const titleText = titleEl ? titleEl.textContent.trim() : '';
+      const iframeTitle = iframe ? (iframe.getAttribute('title') || '').trim() : '';
+      const src = iframe ? (iframe.getAttribute('src') || '').trim() : '';
+      if (!captionText || captionText === EMBED_DEFAULT_CAPTION) {
+        issues.add('Add descriptive captions for embeds.');
+      }
+      if (!titleText || titleText === EMBED_DEFAULT_TITLE || !iframeTitle) {
+        issues.add('Provide descriptive screen reader titles for embeds.');
+      }
+      if (src) {
+        const normalized = normalizeEmbedURL(src);
+        if (!normalized) {
+          issues.add(`Update embeds to use approved providers (${EMBED_PROVIDER_LIST}).`);
+        } else {
+          if (normalized.url !== src && iframe) {
+            iframe.setAttribute('src', normalized.url);
+          }
+          block.dataset.embedSrc = normalized.url;
+          if (normalized.provider) {
+            block.dataset.embedProvider = normalized.provider.key;
+            if (iframe) {
+              iframe.setAttribute('data-embed-provider', normalized.provider.key);
+            }
+          } else {
+            delete block.dataset.embedProvider;
+            if (iframe) {
+              iframe.removeAttribute('data-embed-provider');
+            }
+          }
+        }
       }
     });
 
@@ -3275,6 +3929,7 @@
       '.steps-add',
       '.faq-add',
       '.image-size-controls',
+      '.embed-toolbar',
       '.col-resize-handle',
       '.footnote-return'
     ];
@@ -3285,6 +3940,32 @@
       const replacement = document.createElement('span');
       replacement.textContent = alt ? `[Image: ${alt}]` : '[Image]';
       img.replaceWith(replacement);
+    });
+
+    clone.querySelectorAll('.embed-block iframe, .embed-block video').forEach(embed => {
+      const title = (embed.getAttribute('title') || '').trim();
+      const src = (embed.getAttribute('src') || '').trim();
+      const parentBlock = embed.closest('.embed-block');
+      const providerKey = (embed.getAttribute('data-embed-provider') || '').trim() || (parentBlock && parentBlock.dataset ? parentBlock.dataset.embedProvider : '') || '';
+      const providerLabel = getEmbedProviderLabel(providerKey);
+      let descriptor = '';
+      if (title) {
+        descriptor = providerLabel ? `${providerLabel}: ${title}` : title;
+      } else if (providerLabel && src) {
+        descriptor = `${providerLabel}: ${src}`;
+      } else if (providerLabel) {
+        descriptor = providerLabel;
+      } else if (src) {
+        descriptor = src;
+      }
+      const replacement = document.createElement('span');
+      replacement.textContent = descriptor ? `[Embed: ${descriptor}]` : '[Embed]';
+      const wrapper = embed.closest('.embed-wrapper');
+      if (wrapper && wrapper.parentElement) {
+        wrapper.replaceWith(replacement);
+      } else {
+        embed.replaceWith(replacement);
+      }
     });
 
     clone.querySelectorAll('.footnote-ref').forEach(ref => {
@@ -3493,6 +4174,28 @@
       return;
     }
 
+    if (target.closest('.embed-size-controls') && target.dataset.size) {
+      const block = target.closest('.embed-block');
+      if (block) {
+        captureSnapshot();
+        block.classList.remove('embed-size-s','embed-size-m','embed-size-l');
+        block.classList.add('embed-size-' + target.dataset.size);
+        block.querySelectorAll('.embed-size-controls button')
+          .forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+        afterChange();
+      }
+      return;
+    }
+
+    if (target.classList.contains('embed-edit')) {
+      const block = target.closest('.embed-block');
+      if (block) {
+        openEmbedModal(block);
+      }
+      return;
+    }
+
     // Page controls
     if (target.dataset.movePageUp !== undefined ||
         target.dataset.movePageDown !== undefined ||
@@ -3659,6 +4362,19 @@
       }
     }
 
+    if (target.classList && target.classList.contains('embed-title')) {
+      const block = target.closest('.embed-block');
+      const iframe = block ? block.querySelector('iframe') : null;
+      if (iframe) {
+        const text = (target.textContent || '').trim();
+        if (text && text !== EMBED_DEFAULT_TITLE) {
+          iframe.setAttribute('title', text);
+        } else {
+          iframe.removeAttribute('title');
+        }
+      }
+    }
+
     // Edits inside Footnotes page: keep references tidy
     if (target.closest && target.closest('.footnotes-page')) {
       renumberFootnotes();
@@ -3709,6 +4425,7 @@
     'table-glance': addAtAGlanceTable,
     'table-bai': addBAITable,
     'table-custom': openCustomTableModal,
+    embed: () => openEmbedModal(),
     image: openImageModal
   };
 
