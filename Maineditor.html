@@ -1339,6 +1339,7 @@
       <button class="toolbar-btn" id="redo-btn" aria-label="Redo">Redo</button>
       <button class="toolbar-btn" id="quality-check-btn" aria-label="Check brief for placeholders" title="Check brief for placeholders">Check brief</button>
       <button class="toolbar-btn" id="export-json" aria-label="Export JSON">Export JSON</button>
+      <button class="toolbar-btn" id="export-html" aria-label="Export HTML for self hosting">Export HTML</button>
       <button class="toolbar-btn" id="export-text" aria-label="Export plain text">Export text</button>
       <button class="toolbar-btn" id="import-json" aria-label="Import JSON">Import JSON</button>
       <button class="toolbar-btn" id="print-btn" aria-label="Print or save as PDF">Print / PDF</button>
@@ -3348,6 +3349,108 @@
     return frag;
   }
 
+  function buildSelfHostedHTML() {
+    const theme = getCurrentTheme();
+    const clone = editorRoot.cloneNode(true);
+    const selectorsToRemove = [
+      '.page-controls',
+      '.page-overlay',
+      '.delete-icon',
+      '.table-controls',
+      '.cta-type-switch',
+      '.steps-add',
+      '.faq-add',
+      '.image-size-controls',
+      '.embed-toolbar',
+      '.overflow-indicator'
+    ];
+    if (selectorsToRemove.length) {
+      clone.querySelectorAll(selectorsToRemove.join(',')).forEach(el => el.remove());
+    }
+
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    clone.querySelectorAll('[data-deletable]').forEach(el => el.removeAttribute('data-deletable'));
+
+    const customHosts = new Set();
+    clone.querySelectorAll('.embed-block iframe').forEach(iframe => {
+      const src = iframe.getAttribute('src') || '';
+      const meta = getAllowedEmbedURL(src);
+      if (!meta.parsed || meta.severity === 'blocked') {
+        console.warn('[EBD] Removed insecure embed during HTML export:', src);
+        const notice = document.createElement('div');
+        notice.className = 'embed-warning';
+        notice.textContent = 'Embed removed: insecure URL.';
+        const wrapper = iframe.closest('.embed-wrapper');
+        if (wrapper && wrapper.parentElement) {
+          wrapper.replaceWith(notice);
+        } else {
+          iframe.replaceWith(notice);
+        }
+      } else if (meta.severity === 'custom' && meta.host) {
+        customHosts.add(meta.host);
+      }
+    });
+
+    const docTitleEl = clone.querySelector('.doc-title');
+    const pageTitle = docTitleEl ? docTitleEl.textContent.trim() : '';
+
+    const headLinks = Array.from(document.head.querySelectorAll('link[rel="preconnect"], link[rel="stylesheet"]'))
+      .map(link => link.outerHTML)
+      .join('\n  ');
+    const styleBlocks = Array.from(document.head.querySelectorAll('style'))
+      .map(style => `<style>${style.innerHTML}</style>`)
+      .join('\n  ');
+
+    const exportedApp = document.createElement('div');
+    exportedApp.id = 'app';
+    const wrapper = document.createElement('div');
+    wrapper.id = 'editor-root-wrapper';
+    wrapper.appendChild(clone);
+    exportedApp.appendChild(wrapper);
+
+    const headParts = [];
+    if (headLinks) headParts.push(headLinks);
+    if (styleBlocks) headParts.push(styleBlocks);
+    headParts.push(`<style>
+      body { margin: 0; background: var(--page-bg); color: var(--text-color); }
+      #editor-root-wrapper { padding: 24px 0 48px; }
+      #editor-root { pointer-events: auto; }
+      .embed-warning {
+        font-family: var(--ui-font);
+        background: var(--cta-yellow-bg);
+        border: 1px solid var(--cta-yellow-border);
+        padding: 12px;
+        border-radius: var(--border-radius-md);
+        color: var(--cta-label-color);
+        margin: 12px;
+      }
+    </style>`);
+
+    const title = pageTitle || 'Executive Brief';
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHTML(title)}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  ${headParts.join('\n  ')}
+</head>
+<body class="${theme === 'ft' ? 'theme-ft' : 'theme-iga'}">
+  ${exportedApp.outerHTML}
+</body>
+</html>`;
+
+    const slug = title.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'executive-brief';
+
+    return {
+      html,
+      filename: `${slug}.html`,
+      customHosts: Array.from(customHosts)
+    };
+  }
+
   function handlePaste(e) {
     if (!isInEditor(e.target)) return;
     const cd = e.clipboardData || window.clipboardData;
@@ -3834,6 +3937,34 @@
     runQualityCheck({ onContinue: performExport });
   }
 
+  function exportHTML() {
+    const performExport = () => {
+      clearBlockSelection();
+      hideTextToolbar();
+      hideBlockActions();
+      const { html, filename, customHosts } = buildSelfHostedHTML();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (customHosts.length) {
+        customHosts.forEach(host => {
+          console.warn(`[EBD] Custom embed host exported for self-hosted HTML: ${host}`);
+        });
+        showSnackbar('HTML exported with custom embed hosts flagged for review.');
+      } else {
+        showSnackbar('Self-hosted HTML exported');
+      }
+    };
+
+    runQualityCheck({ onContinue: performExport });
+  }
+
   function exportPlainText() {
     const performExport = () => {
       const text = generatePlainText();
@@ -4227,6 +4358,7 @@
   document.getElementById('undo-btn').addEventListener('click', undo);
   document.getElementById('redo-btn').addEventListener('click', redo);
   document.getElementById('export-json').addEventListener('click', exportJSON);
+  document.getElementById('export-html').addEventListener('click', exportHTML);
   document.getElementById('export-text').addEventListener('click', exportPlainText);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   document.getElementById('print-btn').addEventListener('click', () => window.print());
