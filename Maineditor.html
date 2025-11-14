@@ -478,6 +478,16 @@
       color: var(--accent-primary);
     }
 
+    .footnote-ref a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .footnote-ref a:focus,
+    .footnote-ref a:hover {
+      text-decoration: underline;
+    }
+
     a {
       color: var(--link-color);
       text-decoration: underline;
@@ -1064,6 +1074,14 @@
         display: none !important;
       }
 
+      .table-controls,
+      .cta-type-switch,
+      .image-size-controls,
+      .steps-add,
+      .faq-add {
+        display: none !important;
+      }
+
       #editor-root-wrapper {
         padding: 0 !important;
         background: var(--page-bg);
@@ -1171,6 +1189,7 @@
       <button class="toolbar-btn" id="redo-btn" aria-label="Redo">Redo</button>
       <button class="toolbar-btn" id="quality-check-btn" aria-label="Check brief for placeholders" title="Check brief for placeholders">Check brief</button>
       <button class="toolbar-btn" id="export-json" aria-label="Export JSON">Export JSON</button>
+      <button class="toolbar-btn" id="export-text" aria-label="Export plain text">Export text</button>
       <button class="toolbar-btn" id="import-json" aria-label="Import JSON">Import JSON</button>
       <button class="toolbar-btn" id="print-btn" aria-label="Print or save as PDF">Print / PDF</button>
     </div>
@@ -1314,6 +1333,7 @@
 
   // For column resizing
   let tableResizeState = null;
+  let lastFocusedTableCell = null;
 
   function persistDraft(serialized) {
     try {
@@ -2019,12 +2039,24 @@
         assigned.set(id, counter++);
       }
       const num = assigned.get(id);
-      ref.textContent = '[' + num + ']';
       ref.contentEditable = 'false';
       ref.tabIndex = 0;
       ref.setAttribute('role', 'button');
       ref.setAttribute('aria-label', 'Jump to footnote ' + num);
       ref.id = 'fn-ref-' + num;
+
+      let link = ref.querySelector('a');
+      if (!link) {
+        ref.textContent = '';
+        link = document.createElement('a');
+        link.contentEditable = 'false';
+        link.tabIndex = -1;
+        ref.appendChild(link);
+      }
+      link.setAttribute('href', '#fn-note-' + num);
+      link.setAttribute('aria-label', 'Jump to footnote ' + num);
+      link.textContent = '[' + num + ']';
+
       const li = currentLis.get(id);
       if (li) {
         decorateFootnoteListItem(li, num);
@@ -2649,6 +2681,8 @@
 
     captureSnapshot();
 
+    const activeCell = (lastFocusedTableCell && table.contains(lastFocusedTableCell)) ? lastFocusedTableCell : null;
+
     if (action === 'add-row') {
       const tbody = table.tBodies[0] || table.createTBody();
       const refRow = tbody.rows[tbody.rows.length - 1] || (table.tHead && table.tHead.rows[0]);
@@ -2668,14 +2702,36 @@
       }
     } else if (action === 'del-row') {
       const tbody = table.tBodies[0];
-      if (tbody && tbody.rows.length > 0) tbody.deleteRow(-1);
+      if (tbody && tbody.rows.length > 0) {
+        let targetIndex = tbody.rows.length - 1;
+        if (activeCell) {
+          const row = activeCell.closest('tr');
+          if (row && row.parentElement === tbody) {
+            targetIndex = Array.from(tbody.rows).indexOf(row);
+          }
+        }
+        if (targetIndex >= 0 && targetIndex < tbody.rows.length) {
+          tbody.deleteRow(targetIndex);
+        }
+      }
     } else if (action === 'del-col') {
       const rows = table.rows;
       if (rows.length && rows[0].cells.length > 1) {
+        let targetIndex = rows[0].cells.length - 1;
+        if (activeCell) {
+          targetIndex = activeCell.cellIndex;
+        }
+        if (targetIndex < 0) targetIndex = 0;
         for (let r = 0; r < rows.length; r++) {
-          rows[r].deleteCell(-1);
+          if (rows[r].cells.length > targetIndex) {
+            rows[r].deleteCell(targetIndex);
+          }
         }
       }
+    }
+
+    if (activeCell && !table.contains(activeCell)) {
+      lastFocusedTableCell = null;
     }
 
     const tbody = table.tBodies[0];
@@ -3195,6 +3251,43 @@
 
   /* -------- Export / import -------- */
 
+  function generatePlainText() {
+    const clone = editorRoot.cloneNode(true);
+    const selectorsToRemove = [
+      '.page-controls',
+      '.page-overlay',
+      '.delete-icon',
+      '.table-controls',
+      '.cta-type-switch',
+      '.steps-add',
+      '.faq-add',
+      '.image-size-controls',
+      '.col-resize-handle',
+      '.footnote-return'
+    ];
+    clone.querySelectorAll(selectorsToRemove.join(',')).forEach(el => el.remove());
+
+    clone.querySelectorAll('img').forEach(img => {
+      const alt = (img.getAttribute('alt') || '').trim();
+      const replacement = document.createElement('span');
+      replacement.textContent = alt ? `[Image: ${alt}]` : '[Image]';
+      img.replaceWith(replacement);
+    });
+
+    clone.querySelectorAll('.footnote-ref').forEach(ref => {
+      const text = ref.innerText || ref.textContent || '';
+      ref.replaceWith(document.createTextNode(text.trim()));
+    });
+
+    const temp = document.createElement('div');
+    temp.appendChild(clone);
+    let text = temp.innerText || '';
+    text = text.replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ');
+    text = text.split('\n').map(line => line.replace(/\s+$/g, '')).join('\n');
+    text = text.replace(/\n{3,}/g, '\n\n').trim();
+    return text;
+  }
+
   function exportJSON() {
     const performExport = () => {
       const theme = getCurrentTheme();
@@ -3218,6 +3311,24 @@
       a.remove();
       URL.revokeObjectURL(url);
       showSnackbar('JSON exported');
+    };
+
+    runQualityCheck({ onContinue: performExport });
+  }
+
+  function exportPlainText() {
+    const performExport = () => {
+      const text = generatePlainText();
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'executive-brief.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showSnackbar('Plain text exported');
     };
 
     runQualityCheck({ onContinue: performExport });
@@ -3510,6 +3621,20 @@
 
   /* -------- Input handler (CTA + footnotes) -------- */
 
+  editorRoot.addEventListener('focusin', e => {
+    const cell = e.target.closest ? e.target.closest('td, th') : null;
+    if (cell && cell.isContentEditable && cell.closest('table')) {
+      lastFocusedTableCell = cell;
+    }
+  });
+
+  editorRoot.addEventListener('mousedown', e => {
+    const cell = e.target.closest ? e.target.closest('td, th') : null;
+    if (cell && cell.isContentEditable && cell.closest('table')) {
+      lastFocusedTableCell = cell;
+    }
+  });
+
   editorRoot.addEventListener('input', e => {
     const target = e.target;
 
@@ -3549,6 +3674,7 @@
   document.getElementById('undo-btn').addEventListener('click', undo);
   document.getElementById('redo-btn').addEventListener('click', redo);
   document.getElementById('export-json').addEventListener('click', exportJSON);
+  document.getElementById('export-text').addEventListener('click', exportPlainText);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   document.getElementById('print-btn').addEventListener('click', () => window.print());
 
