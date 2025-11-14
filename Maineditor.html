@@ -1125,6 +1125,47 @@
       outline: none;
     }
 
+    .embed-host-guidance {
+      background: rgba(30,41,59,0.7);
+      border: 1px solid rgba(148,163,184,0.2);
+      border-radius: 6px;
+      padding: 6px;
+      margin: 2px 0 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .embed-host-status {
+      font-weight: 600;
+      font-size: 10px;
+      color: #cbd5f5;
+    }
+
+    .embed-host-status[data-state="approved"] {
+      color: #6ee7b7;
+    }
+
+    .embed-host-status[data-state="warning"] {
+      color: #facc15;
+    }
+
+    .embed-host-status[data-state="error"] {
+      color: #fca5a5;
+    }
+
+    .embed-host-tip {
+      font-size: 10px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    .embed-host-warning {
+      font-size: 10px;
+      color: #fbbf24;
+      line-height: 1.4;
+    }
+
     .modal-actions {
       display: flex;
       justify-content: flex-end;
@@ -1298,6 +1339,7 @@
       <button class="toolbar-btn" id="redo-btn" aria-label="Redo">Redo</button>
       <button class="toolbar-btn" id="quality-check-btn" aria-label="Check brief for placeholders" title="Check brief for placeholders">Check brief</button>
       <button class="toolbar-btn" id="export-json" aria-label="Export JSON">Export JSON</button>
+      <button class="toolbar-btn" id="export-html" aria-label="Export HTML for self hosting">Export HTML</button>
       <button class="toolbar-btn" id="export-text" aria-label="Export plain text">Export text</button>
       <button class="toolbar-btn" id="import-json" aria-label="Import JSON">Import JSON</button>
       <button class="toolbar-btn" id="print-btn" aria-label="Print or save as PDF">Print / PDF</button>
@@ -1435,17 +1477,45 @@
   const EMBED_DEFAULT_CAPTION = 'Add a descriptive caption…';
   const EMBED_DEFAULT_TITLE = 'Describe this embed for screen readers…';
   const ALLOWED_EMBED_HOSTS = [
-    'youtube.com',
-    'www.youtube.com',
-    'youtube-nocookie.com',
-    'www.youtube-nocookie.com',
-    'youtu.be',
-    'player.vimeo.com',
-    'vimeo.com',
-    'www.vimeo.com',
-    'open.spotify.com',
-    'spotify.com'
+    {
+      label: 'YouTube',
+      severity: 'approved',
+      hosts: [
+        'youtube.com',
+        'www.youtube.com',
+        'youtube-nocookie.com',
+        'www.youtube-nocookie.com',
+        'youtu.be'
+      ],
+      tip: 'Tip: Use Share → Embed (https://www.youtube-nocookie.com) for privacy-friendly players.'
+    },
+    {
+      label: 'Vimeo',
+      severity: 'approved',
+      hosts: [
+        'player.vimeo.com',
+        'vimeo.com',
+        'www.vimeo.com'
+      ],
+      tip: 'Tip: Prefer player.vimeo.com links for clean embeds without extra chrome.'
+    },
+    {
+      label: 'Spotify',
+      severity: 'approved',
+      hosts: [
+        'open.spotify.com',
+        'spotify.com'
+      ],
+      tip: 'Tip: Use Share → Copy link from Spotify to grab embeddable tracks or episodes.'
+    }
   ];
+
+  const EMBED_GUIDANCE_COPY = {
+    defaultTip: 'Paste a full https:// embed link to check compatibility.',
+    customTip: 'Double-check privacy controls and only embed trusted, accessible players.',
+    customWarning: 'Custom hosts are allowed but flagged during quality checks.',
+    blockedTip: 'Ensure the URL begins with https:// and comes from a trusted provider.'
+  };
 
   const INTERNAL_MARKER_START = '<!--EBD_INTERNAL_START-->';
   const INTERNAL_MARKER_END = '<!--EBD_INTERNAL_END-->';
@@ -1498,22 +1568,105 @@
   }
 
   function getAllowedEmbedURL(url) {
-    if (!url || !/^https?:\/\//i.test(url)) return null;
+    if (!url || !/^https?:\/\//i.test(url)) {
+      return { parsed: null, severity: 'blocked', reason: 'Embed URL must begin with https://', host: '' };
+    }
     try {
       const parsed = new URL(url);
-      if (parsed.protocol !== 'https:') return null;
+      if (parsed.protocol !== 'https:') {
+        return { parsed, severity: 'blocked', reason: 'Embed URLs must use HTTPS.', host: parsed.hostname.toLowerCase() };
+      }
       const host = parsed.hostname.toLowerCase();
-      const allowed = ALLOWED_EMBED_HOSTS.some(allowedHost =>
-        host === allowedHost || host.endsWith('.' + allowedHost)
-      );
-      return allowed ? parsed : null;
+      const rule = ALLOWED_EMBED_HOSTS.find(entry =>
+        (entry.hosts || []).some(allowedHost => host === allowedHost || host.endsWith('.' + allowedHost))
+      ) || null;
+      if (rule) {
+        return { parsed, severity: rule.severity || 'approved', reason: '', host, rule };
+      }
+      return { parsed, severity: 'custom', reason: '', host, rule: null };
     } catch (err) {
-      return null;
+      return { parsed: null, severity: 'blocked', reason: 'Enter a valid HTTPS URL.', host: '' };
     }
   }
 
+  function parseYouTubeTimestamp(value) {
+    if (!value) return NaN;
+    if (/^\d+$/.test(value)) {
+      return parseInt(value, 10);
+    }
+    const match = value.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i);
+    if (!match) return NaN;
+    const hours = match[1] ? parseInt(match[1], 10) : 0;
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
+    const seconds = match[3] ? parseInt(match[3], 10) : 0;
+    return (hours * 3600) + (minutes * 60) + seconds;
+  }
+
+  function normalizeYouTubeURL(parsed) {
+    if (!parsed) return '';
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname || '';
+    const searchParams = parsed.searchParams;
+    let videoId = '';
+
+    if (host.endsWith('youtu.be')) {
+      videoId = path.replace(/^\//, '').split('/')[0] || '';
+    } else if (path.startsWith('/embed/')) {
+      videoId = path.split('/')[2] || '';
+    } else if (path.startsWith('/shorts/')) {
+      videoId = path.split('/')[2] || '';
+    } else if (path.startsWith('/live/')) {
+      videoId = path.split('/')[2] || '';
+    } else if (path === '/watch' || path === '/watch/') {
+      videoId = searchParams.get('v') || '';
+    }
+
+    if (!videoId) {
+      return parsed.toString();
+    }
+
+    const cleanedParams = new URLSearchParams();
+    searchParams.forEach((value, key) => {
+      if (key.toLowerCase() === 'v') return;
+      cleanedParams.append(key, value);
+    });
+
+    if (cleanedParams.has('t') && !cleanedParams.has('start')) {
+      const seconds = parseYouTubeTimestamp(cleanedParams.get('t'));
+      if (!Number.isNaN(seconds) && seconds > 0) {
+        cleanedParams.delete('t');
+        cleanedParams.set('start', String(seconds));
+      }
+    }
+
+    const baseHost = 'www.youtube-nocookie.com';
+    const baseUrl = `https://${baseHost}/embed/${encodeURIComponent(videoId)}`;
+    const query = cleanedParams.toString();
+    return query ? `${baseUrl}?${query}` : baseUrl;
+  }
+
+  function normalizeEmbedURL(url) {
+    const meta = getAllowedEmbedURL(url);
+    if (!meta || !meta.parsed || meta.severity === 'blocked') {
+      return { url, meta };
+    }
+
+    let normalizedUrl = url;
+    if (meta.rule && meta.rule.label === 'YouTube') {
+      normalizedUrl = normalizeYouTubeURL(meta.parsed) || url;
+    }
+
+    if (normalizedUrl !== url) {
+      const normalizedMeta = getAllowedEmbedURL(normalizedUrl);
+      return { url: normalizedUrl, meta: normalizedMeta };
+    }
+
+    return { url, meta };
+  }
+
   function isAllowedEmbedURL(url) {
-    return !!getAllowedEmbedURL(url);
+    const result = getAllowedEmbedURL(url);
+    return !!(result && result.parsed && result.severity !== 'blocked');
   }
 
   function promptRestoreDraft() {
@@ -2743,7 +2896,7 @@
     });
   }
 
-  function createEmbedBlock({ url, title = '', caption = '', size = 'm' } = {}) {
+  function createEmbedBlock({ url, title = '', caption = '', size = 'm', severity = 'custom', host = '' } = {}) {
     const normalizedSize = ['s', 'm', 'l'].includes(size) ? size : 'm';
     const safeUrl = escapeHTML(url);
     const safeTitleAttr = escapeHTML(title);
@@ -2757,6 +2910,12 @@
     block.className = `embed-block embed-size-${normalizedSize} page-break-avoider`;
     block.dataset.deletable = 'true';
     block.dataset.embedSrc = url;
+    block.dataset.embedSeverity = severity;
+    if (host) {
+      block.dataset.embedHost = host;
+    } else {
+      delete block.dataset.embedHost;
+    }
     block.innerHTML = `
       ${DELETE_ICON_HTML}
       <div class="embed-toolbar" contenteditable="false">
@@ -2776,11 +2935,43 @@
     return block;
   }
 
+  function normalizeExistingEmbeds() {
+    editorRoot.querySelectorAll('.embed-block iframe').forEach(iframe => {
+      const currentSrc = iframe.getAttribute('src') || '';
+      if (!currentSrc) return;
+      const { url: normalizedUrl, meta } = normalizeEmbedURL(currentSrc);
+      if (!meta || !meta.parsed || meta.severity === 'blocked') return;
+      if (normalizedUrl && normalizedUrl !== currentSrc) {
+        iframe.setAttribute('src', normalizedUrl);
+      }
+      const block = iframe.closest('.embed-block');
+      if (block) {
+        block.dataset.embedSrc = normalizedUrl || currentSrc;
+        block.dataset.embedSeverity = meta.severity;
+        if (meta.host) {
+          block.dataset.embedHost = meta.host;
+        } else {
+          delete block.dataset.embedHost;
+        }
+      }
+    });
+  }
+
   function addEmbedBlock({ url, title = '', caption = '', size = 'm' } = {}) {
     const body = getActiveContentPageBody();
     if (!body) return null;
     captureSnapshot();
-    const block = createEmbedBlock({ url, title, caption, size });
+    const normalized = normalizeEmbedURL(url);
+    const finalMeta = normalized.meta;
+    const finalUrl = normalized.url;
+    const block = createEmbedBlock({
+      url: finalUrl,
+      title,
+      caption,
+      size,
+      severity: finalMeta && finalMeta.severity ? finalMeta.severity : 'custom',
+      host: finalMeta && finalMeta.host ? finalMeta.host : ''
+    });
     body.appendChild(block);
     afterChange();
     ensureBlockVisible(block);
@@ -2791,12 +2982,28 @@
     const iframe = existingBlock ? existingBlock.querySelector('iframe') : null;
     const existingUrl = existingBlock ? (existingBlock.dataset.embedSrc || (iframe && iframe.getAttribute('src')) || '') : '';
     const existingTitleAttr = iframe ? (iframe.getAttribute('title') || '') : '';
+    const approvedProviders = ALLOWED_EMBED_HOSTS
+      .filter(entry => (entry.severity || 'approved') !== 'blocked')
+      .map(entry => entry.label)
+      .join(', ');
+    const defaultStatusText = approvedProviders
+      ? `Approved providers: ${approvedProviders}.`
+      : 'Paste an HTTPS embed URL to get started.';
+
+    // Embed modal UX copy is centralised here to keep authoring guidance close to the UI wiring.
+    const defaultTip = EMBED_GUIDANCE_COPY.defaultTip;
+    const warningCopy = EMBED_GUIDANCE_COPY.customWarning;
 
     openModal({
       title: existingBlock ? 'Update embed' : 'Add embed',
       body: `
         <label>Embed URL</label>
         <input type="url" id="embed-url" placeholder="https://www.youtube.com/embed/..." />
+        <div class="embed-host-guidance">
+          <div class="embed-host-status" data-embed-status>${escapeHTML(defaultStatusText)}</div>
+          <div class="embed-host-tip" data-embed-tip>${escapeHTML(defaultTip)}</div>
+          <div class="embed-host-warning" data-embed-warning hidden>${escapeHTML(warningCopy)}</div>
+        </div>
         <label>Title (for screen readers)</label>
         <input type="text" id="embed-title-input" placeholder="${escapeHTML(EMBED_DEFAULT_TITLE)}" />
       `,
@@ -2806,24 +3013,40 @@
         const titleInput = modalInner.querySelector('#embed-title-input');
         const url = urlInput ? urlInput.value.trim() : '';
         const title = titleInput ? titleInput.value.trim() : '';
+        const normalized = normalizeEmbedURL(url);
+        const meta = normalized.meta;
 
-        if (!isAllowedEmbedURL(url)) {
-          showSnackbar('Embed URL must be HTTPS and use an approved host (YouTube, Vimeo, Spotify).');
+        if (!meta || !meta.parsed || meta.severity === 'blocked') {
+          const reason = (meta && meta.reason) ? meta.reason : 'Embed URLs must use HTTPS.';
+          showSnackbar(reason);
+          if (urlInput) {
+            urlInput.focus();
+            renderGuidance(meta || getAllowedEmbedURL(urlInput.value), urlInput.value);
+          }
           return;
         }
 
+        const finalUrl = normalized.url;
+
+        let saved = false;
         if (existingBlock) {
           captureSnapshot();
           const blockIframe = existingBlock.querySelector('iframe');
           if (blockIframe) {
-            blockIframe.setAttribute('src', url);
+            blockIframe.setAttribute('src', finalUrl);
             if (title) {
               blockIframe.setAttribute('title', title);
             } else {
               blockIframe.removeAttribute('title');
             }
           }
-          existingBlock.dataset.embedSrc = url;
+          existingBlock.dataset.embedSrc = finalUrl;
+          existingBlock.dataset.embedSeverity = meta.severity;
+          if (meta.host) {
+            existingBlock.dataset.embedHost = meta.host;
+          } else {
+            delete existingBlock.dataset.embedHost;
+          }
           const titleEl = existingBlock.querySelector('.embed-title');
           if (titleEl) {
             titleEl.textContent = title ? title : EMBED_DEFAULT_TITLE;
@@ -2831,24 +3054,83 @@
           afterChange();
           closeModal();
           ensureBlockVisible(existingBlock);
-          return;
+          saved = true;
+        } else {
+          const newBlock = addEmbedBlock({ url: finalUrl, title });
+          if (newBlock) {
+            const caption = newBlock.querySelector('.embed-caption');
+            if (caption) caption.textContent = EMBED_DEFAULT_CAPTION;
+            closeModal();
+            saved = true;
+          } else {
+            showSnackbar('Select a page to add the embed.');
+            return;
+          }
         }
 
-        const newBlock = addEmbedBlock({ url, title });
-        if (newBlock) {
-          closeModal();
-        } else {
-          showSnackbar('Select a page to add the embed.');
+        if (saved && meta.severity === 'custom') {
+          showSnackbar('Custom embed saved. Quality check will flag it for review.');
         }
       },
       onCancel: closeModal
     });
 
-    const urlField = modalInner.querySelector('#embed-url');
-    const titleField = modalInner.querySelector('#embed-title-input');
-    if (urlField) urlField.value = existingUrl;
-    if (titleField) titleField.value = existingTitleAttr;
-    if (urlField) urlField.focus();
+    const urlInput = modalInner.querySelector('#embed-url');
+    const titleInput = modalInner.querySelector('#embed-title-input');
+    const statusEl = modalInner.querySelector('[data-embed-status]');
+    const tipEl = modalInner.querySelector('[data-embed-tip]');
+    const warningEl = modalInner.querySelector('[data-embed-warning]');
+
+    const renderGuidance = (meta, value) => {
+      if (!statusEl || !tipEl || !warningEl) return;
+      const trimmed = value ? value.trim() : '';
+      if (!trimmed) {
+        statusEl.textContent = defaultStatusText;
+        statusEl.dataset.state = 'neutral';
+        tipEl.textContent = defaultTip;
+        warningEl.hidden = true;
+        return;
+      }
+
+      if (!meta || !meta.parsed || meta.severity === 'blocked') {
+        statusEl.textContent = meta && meta.reason ? meta.reason : 'Embed URLs must use HTTPS.';
+        statusEl.dataset.state = 'error';
+        tipEl.textContent = EMBED_GUIDANCE_COPY.blockedTip;
+        warningEl.hidden = true;
+        return;
+      }
+
+      if (meta.severity === 'approved') {
+        statusEl.textContent = meta.rule ? `Approved provider: ${meta.rule.label}` : `Approved provider: ${meta.host}`;
+        statusEl.dataset.state = 'approved';
+        const providerTip = (meta.rule && meta.rule.tip) ? meta.rule.tip : defaultTip;
+        tipEl.textContent = providerTip;
+        warningEl.hidden = true;
+        return;
+      }
+
+      statusEl.textContent = `Custom host detected: ${meta.host}`;
+      statusEl.dataset.state = 'warning';
+      tipEl.textContent = EMBED_GUIDANCE_COPY.customTip;
+      warningEl.textContent = EMBED_GUIDANCE_COPY.customWarning;
+      warningEl.hidden = false;
+    };
+
+    if (urlInput) {
+      urlInput.value = existingUrl;
+      const initialMeta = existingUrl ? getAllowedEmbedURL(existingUrl) : null;
+      renderGuidance(initialMeta, existingUrl);
+      urlInput.addEventListener('input', event => {
+        const value = event.target.value;
+        const meta = getAllowedEmbedURL(value);
+        renderGuidance(meta, value);
+      });
+      urlInput.focus();
+    }
+
+    if (titleInput) {
+      titleInput.value = existingTitleAttr;
+    }
   }
 
   function addImageBlockWithURL(url) {
@@ -3127,9 +3409,16 @@
         if (name === 'href' && /^https?:\/\//i.test(attr.value)) {
           el.setAttribute('href', attr.value);
         } else if (name === 'src') {
-          if ((tagName === 'IFRAME' || tagName === 'VIDEO' || tagName === 'SOURCE') && isAllowedEmbedURL(attr.value)) {
-            el.setAttribute('src', attr.value);
-            hasAllowedSrc = true;
+          if (tagName === 'IFRAME' || tagName === 'VIDEO' || tagName === 'SOURCE') {
+            const normalized = normalizeEmbedURL(attr.value);
+            const meta = normalized.meta;
+            if (meta && meta.parsed && meta.severity !== 'blocked') {
+              el.setAttribute('src', normalized.url);
+              hasAllowedSrc = true;
+              if (meta.severity === 'custom' && meta.host) {
+                console.warn(`[EBD] Custom embed host retained during paste: ${meta.host}`);
+              }
+            }
           }
         } else if (allowed.includes(name)) {
           if (attr.value === '') {
@@ -3162,6 +3451,108 @@
       if (c) frag.appendChild(c);
     });
     return frag;
+  }
+
+  function buildSelfHostedHTML() {
+    const theme = getCurrentTheme();
+    const clone = editorRoot.cloneNode(true);
+    const selectorsToRemove = [
+      '.page-controls',
+      '.page-overlay',
+      '.delete-icon',
+      '.table-controls',
+      '.cta-type-switch',
+      '.steps-add',
+      '.faq-add',
+      '.image-size-controls',
+      '.embed-toolbar',
+      '.overflow-indicator'
+    ];
+    if (selectorsToRemove.length) {
+      clone.querySelectorAll(selectorsToRemove.join(',')).forEach(el => el.remove());
+    }
+
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    clone.querySelectorAll('[data-deletable]').forEach(el => el.removeAttribute('data-deletable'));
+
+    const customHosts = new Set();
+    clone.querySelectorAll('.embed-block iframe').forEach(iframe => {
+      const src = iframe.getAttribute('src') || '';
+      const meta = getAllowedEmbedURL(src);
+      if (!meta.parsed || meta.severity === 'blocked') {
+        console.warn('[EBD] Removed insecure embed during HTML export:', src);
+        const notice = document.createElement('div');
+        notice.className = 'embed-warning';
+        notice.textContent = 'Embed removed: insecure URL.';
+        const wrapper = iframe.closest('.embed-wrapper');
+        if (wrapper && wrapper.parentElement) {
+          wrapper.replaceWith(notice);
+        } else {
+          iframe.replaceWith(notice);
+        }
+      } else if (meta.severity === 'custom' && meta.host) {
+        customHosts.add(meta.host);
+      }
+    });
+
+    const docTitleEl = clone.querySelector('.doc-title');
+    const pageTitle = docTitleEl ? docTitleEl.textContent.trim() : '';
+
+    const headLinks = Array.from(document.head.querySelectorAll('link[rel="preconnect"], link[rel="stylesheet"]'))
+      .map(link => link.outerHTML)
+      .join('\n  ');
+    const styleBlocks = Array.from(document.head.querySelectorAll('style'))
+      .map(style => `<style>${style.innerHTML}</style>`)
+      .join('\n  ');
+
+    const exportedApp = document.createElement('div');
+    exportedApp.id = 'app';
+    const wrapper = document.createElement('div');
+    wrapper.id = 'editor-root-wrapper';
+    wrapper.appendChild(clone);
+    exportedApp.appendChild(wrapper);
+
+    const headParts = [];
+    if (headLinks) headParts.push(headLinks);
+    if (styleBlocks) headParts.push(styleBlocks);
+    headParts.push(`<style>
+      body { margin: 0; background: var(--page-bg); color: var(--text-color); }
+      #editor-root-wrapper { padding: 24px 0 48px; }
+      #editor-root { pointer-events: auto; }
+      .embed-warning {
+        font-family: var(--ui-font);
+        background: var(--cta-yellow-bg);
+        border: 1px solid var(--cta-yellow-border);
+        padding: 12px;
+        border-radius: var(--border-radius-md);
+        color: var(--cta-label-color);
+        margin: 12px;
+      }
+    </style>`);
+
+    const title = pageTitle || 'Executive Brief';
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHTML(title)}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  ${headParts.join('\n  ')}
+</head>
+<body class="${theme === 'ft' ? 'theme-ft' : 'theme-iga'}">
+  ${exportedApp.outerHTML}
+</body>
+</html>`;
+
+    const slug = title.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'executive-brief';
+
+    return {
+      html,
+      filename: `${slug}.html`,
+      customHosts: Array.from(customHosts)
+    };
   }
 
   function handlePaste(e) {
@@ -3442,6 +3833,7 @@
 
   function collectQualityIssues() {
     const issues = new Set();
+    const warnings = new Set();
     const placeholderHits = new Set();
     const scanNodes = editorRoot.querySelectorAll('[data-deletable="true"], td, th, .steps-block li, .faq-block .faq-q, .faq-block .faq-a, .image-caption, .embed-caption, .embed-title');
     scanNodes.forEach(node => {
@@ -3487,14 +3879,17 @@
       const titleText = titleEl ? titleEl.textContent.trim() : '';
       const iframeTitle = iframe ? (iframe.getAttribute('title') || '').trim() : '';
       const src = iframe ? (iframe.getAttribute('src') || '').trim() : '';
+      const meta = src ? getAllowedEmbedURL(src) : null;
       if (!captionText || captionText === EMBED_DEFAULT_CAPTION) {
         issues.add('Add descriptive captions for embeds.');
       }
       if (!titleText || titleText === EMBED_DEFAULT_TITLE || !iframeTitle) {
         issues.add('Provide descriptive screen reader titles for embeds.');
       }
-      if (src && !isAllowedEmbedURL(src)) {
-        issues.add('Update embeds to use approved hosts (YouTube, Vimeo, Spotify).');
+      if (!meta || !meta.parsed || meta.severity === 'blocked') {
+        issues.add('Update embeds to use secure HTTPS URLs.');
+      } else if (meta.severity === 'custom' && meta.host) {
+        warnings.add(`Review custom embed host: ${meta.host}.`);
       }
     });
 
@@ -3503,22 +3898,28 @@
       issues.add('Resolve placeholder footnote references [?].');
     }
 
-    return Array.from(issues);
+    return {
+      issues: Array.from(issues),
+      warnings: Array.from(warnings)
+    };
   }
 
   function runQualityCheck(options = {}) {
     const { onContinue, showNoIssues = true } = options;
-    const issues = collectQualityIssues();
-    if (!issues.length) {
+    const { issues, warnings } = collectQualityIssues();
+    const hasIssues = issues.length > 0;
+    const hasWarnings = warnings.length > 0;
+    if (!hasIssues && !hasWarnings) {
       if (showNoIssues) showSnackbar('No quality issues found');
       if (typeof onContinue === 'function') onContinue();
       return;
     }
 
-    const listItems = issues.map(issue => `<li>${issue}</li>`).join('');
+    const listItems = hasIssues ? `<p>Fix these before finalising your brief:</p><ul>${issues.map(issue => `<li>${issue}</li>`).join('')}</ul>` : '';
+    const warningItems = hasWarnings ? `<p>Heads-up checks:</p><ul>${warnings.map(warning => `<li>${warning}</li>`).join('')}</ul>` : '';
     openModal({
       title: 'Quality check',
-      body: `<p>Fix these before finalising your brief:</p><ul>${listItems}</ul>`,
+      body: `${listItems}${warningItems}`,
       confirmLabel: onContinue ? 'Continue anyway' : 'OK',
       cancelLabel: 'Close',
       onConfirm: () => {
@@ -3640,6 +4041,34 @@
     runQualityCheck({ onContinue: performExport });
   }
 
+  function exportHTML() {
+    const performExport = () => {
+      clearBlockSelection();
+      hideTextToolbar();
+      hideBlockActions();
+      const { html, filename, customHosts } = buildSelfHostedHTML();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (customHosts.length) {
+        customHosts.forEach(host => {
+          console.warn(`[EBD] Custom embed host exported for self-hosted HTML: ${host}`);
+        });
+        showSnackbar('HTML exported with custom embed hosts flagged for review.');
+      } else {
+        showSnackbar('Self-hosted HTML exported');
+      }
+    };
+
+    runQualityCheck({ onContinue: performExport });
+  }
+
   function exportPlainText() {
     const performExport = () => {
       const text = generatePlainText();
@@ -3673,6 +4102,7 @@
         editorRoot.innerHTML = main.innerHTML;
         setTheme(obj.theme === 'ft' ? 'ft' : 'iga');
         ensureFootnotesPage();
+        normalizeExistingEmbeds();
         updatePageNumbers();
         renumberFootnotes();
         initAllTableResizers();
@@ -4033,6 +4463,7 @@
   document.getElementById('undo-btn').addEventListener('click', undo);
   document.getElementById('redo-btn').addEventListener('click', redo);
   document.getElementById('export-json').addEventListener('click', exportJSON);
+  document.getElementById('export-html').addEventListener('click', exportHTML);
   document.getElementById('export-text').addEventListener('click', exportPlainText);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   document.getElementById('print-btn').addEventListener('click', () => window.print());
@@ -4112,6 +4543,7 @@
   ensureFootnotesPage();
   updatePageNumbers();
   renumberFootnotes();
+  normalizeExistingEmbeds();
   initAllTableResizers();
   initHistory();
   promptRestoreDraft();
