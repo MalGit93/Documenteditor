@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Northern Ireland Biennial MOT Consultation – Timeline</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --iga-blue: #003e6b;
+      --iga-blue-light: #e3edf7;
+      --iga-orange: #ff7f32;
+      --iga-grey: #6b7280;
+      --iga-border: #d1d5db;
+      --iga-bg: #f5f5f6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: var(--iga-bg);
+      color: #111827;
+    }
+
+    .page {
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 24px 20px 40px;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    header h1 {
+      margin: 0 0 4px;
+      font-size: 1.6rem;
+      color: var(--iga-blue);
+    }
+
+    header p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--iga-grey);
+    }
+
+    .subheading {
+      margin-top: 16px;
+      font-size: 0.98rem;
+      color: #374151;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 24px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #4b5563;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .legend-dot.consultation {
+      background: var(--iga-blue);
+    }
+
+    .legend-dot.press {
+      background: var(--iga-orange);
+    }
+
+    .legend-dot.evidence {
+      background: #059669;
+    }
+
+    .legend-dot.status {
+      background: #9333ea;
+    }
+
+    .timeline-wrapper {
+      position: relative;
+      margin-top: 8px;
+    }
+
+    .timeline {
+      position: relative;
+      margin-left: 18px;
+      padding-left: 18px;
+      border-left: 2px solid var(--iga-border);
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .timeline-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .timeline-marker {
+      position: absolute;
+      left: -25px;
+      top: 8px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 3px solid var(--iga-blue);
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(0, 62, 107, 0.08);
+    }
+
+    .timeline-marker.consultation {
+      border-color: var(--iga-blue);
+    }
+
+    .timeline-marker.press {
+      border-color: var(--iga-orange);
+    }
+
+    .timeline-marker.evidence {
+      border-color: #059669;
+    }
+
+    .timeline-marker.status {
+      border-color: #9333ea;
+    }
+
+    .timeline-content {
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid var(--iga-border);
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: 4px;
+    }
+
+    .timeline-date {
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #4b5563;
+    }
+
+    .timeline-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .timeline-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .timeline-tag {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .timeline-tag.consultation {
+      background: var(--iga-blue-light);
+      border-color: var(--iga-blue);
+      color: var(--iga-blue);
+    }
+
+    .timeline-tag.press {
+      background: #fff3e9;
+      border-color: var(--iga-orange);
+      color: var(--iga-orange);
+    }
+
+    .timeline-tag.evidence {
+      background: #ecfdf3;
+      border-color: #059669;
+      color: #047857;
+    }
+
+    .timeline-tag.status {
+      background: #f5ecff;
+      border-color: #9333ea;
+      color: #7e22ce;
+    }
+
+    .timeline-description {
+      font-size: 0.88rem;
+      color: #374151;
+      line-height: 1.45;
+    }
+
+    .status-note {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border-left: 4px solid #f59e0b;
+      background: #fffbeb;
+      font-size: 0.86rem;
+      color: #78350f;
+    }
+
+    .status-note strong {
+      font-weight: 600;
+    }
+
+    footer {
+      margin-top: 26px;
+      font-size: 0.78rem;
+      color: #6b7280;
+      border-top: 1px solid var(--iga-border);
+      padding-top: 10px;
+    }
+
+    footer a {
+      color: var(--iga-blue);
+      text-decoration: none;
+      border-bottom: 1px dotted rgba(0, 62, 107, 0.4);
+    }
+
+    footer a:hover {
+      border-bottom-style: solid;
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        margin: 12px;
+        padding: 18px 14px 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Northern Ireland Biennial MOT Consultation – Timeline</h1>
+      <p>As at 21 November 2025 · For internal briefing and presentations</p>
+      <p class="subheading">
+        This diagram summarises the key public milestones so far in the
+        Department for Infrastructure (DfI) consultation on moving some MOT
+        tests from annual to biennial in Northern Ireland.
+      </p>
+    </header>
+
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot consultation"></span><span>Consultation events</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot press"></span><span>Ministerial / press lines</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot evidence"></span><span>Committee evidence</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot status"></span><span>Current status</span>
+      </div>
+    </div>
+
+    <section class="timeline-wrapper">
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <div class="status-note">
+      <strong>Current position:</strong> the consultation is closed and has been
+      discussed at the Infrastructure Committee, but no formal consultation
+      report or ministerial decision on biennial MOT testing has been
+      published.
+    </div>
+
+    <footer>
+      You can host this file as a standalone HTML page and embed it in other
+      documents via an <code>&lt;iframe&gt;</code> or link. To update the
+      timeline, edit the <code>events</code> array in the script at the bottom
+      of this file.
+    </footer>
+  </div>
+
+  <script>
+    // --- Data: edit this array to change the timeline events ---
+    const events = [
+      {
+        date: "22 Jan 2025 – 16 Apr 2025",
+        title: "Consultation open (12 weeks)",
+        type: "consultation",
+        description:
+          "DfI launches the consultation on biennial MOT testing for some private cars, motorcycles and light goods vehicles. Any change would require an Act of the Northern Ireland Assembly."
+      },
+      {
+        date: "6 Mar 2025",
+        title: "Press line – TECs & waiting times",
+        type: "press",
+        description:
+          "Minister Liz Kimmins issues a press release on extending Temporary Exemption Certificates (TECs) and reducing MOT waiting times, flagging the biennial MOT consultation as part of the longer-term approach."
+      },
+      {
+        date: "11 Apr 2025",
+        title: "Further press line",
+        type: "press",
+        description:
+          "A further ministerial communication again links the MOT backlog, TECs and the ongoing biennial MOT consultation as options in the wider capacity strategy."
+      },
+      {
+        date: "2 Jul 2025",
+        title: "Infrastructure Committee evidence",
+        type: "evidence",
+        description:
+          "DfI officials (including Dr Chris Hughes and Dorcas Cutrona) give oral evidence to the NI Assembly Infrastructure Committee under the item ‘Outcome of the Consultation on Biennial MOT Testing’, highlighting that analysis and data collection are still ongoing and noting that around 80% of respondents favoured biennial testing."
+      },
+      {
+        date: "21 Nov 2025",
+        title: "Consultation still ‘closed – documents only’",
+        type: "status",
+        description:
+          "The consultation page remains marked as ‘Closed – consultation documents only’ with no synopsis of responses or ministerial decision published. DfI continues to reference TECs, new test centres and the biennial MOT option in its public narrative on tackling MOT backlogs."
+      }
+    ];
+
+    // --- Rendering logic: no need to edit below unless you want to change layout ---
+    const timelineEl = document.getElementById("timeline");
+
+    function createTag(type) {
+      const span = document.createElement("span");
+      span.classList.add("timeline-tag", type);
+      const labels = {
+        consultation: "Consultation",
+        press: "Press / Ministerial",
+        evidence: "Committee evidence",
+        status: "Status"
+      };
+      span.textContent = labels[type] || type;
+      return span;
+    }
+
+    function renderTimeline(events) {
+      events.forEach((ev) => {
+        const item = document.createElement("div");
+        item.className = "timeline-item";
+
+        const marker = document.createElement("div");
+        marker.className = `timeline-marker ${ev.type || ""}`;
+        item.appendChild(marker);
+
+        const content = document.createElement("div");
+        content.className = "timeline-content";
+
+        const dateEl = document.createElement("div");
+        dateEl.className = "timeline-date";
+        dateEl.textContent = ev.date;
+        content.appendChild(dateEl);
+
+        const titleRow = document.createElement("div");
+        titleRow.className = "timeline-title-row";
+
+        const titleEl = document.createElement("div");
+        titleEl.className = "timeline-title";
+        titleEl.textContent = ev.title;
+        titleRow.appendChild(titleEl);
+
+        if (ev.type) {
+          titleRow.appendChild(createTag(ev.type));
+        }
+
+        content.appendChild(titleRow);
+
+        if (ev.description) {
+          const descEl = document.createElement("div");
+          descEl.className = "timeline-description";
+          descEl.textContent = ev.description;
+          content.appendChild(descEl);
+        }
+
+        item.appendChild(content);
+        timelineEl.appendChild(item);
+      });
+    }
+
+    renderTimeline(events);
+  </script>
+</body>
+</html>
