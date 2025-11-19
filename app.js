@@ -9,6 +9,9 @@
 
   const DELETE_ICON_HTML = '<span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>';
   const DRAFT_STORAGE_KEY = 'igaEbdDraft';
+  const AVAILABLE_THEMES = ['iga', 'ft', 'slate', 'emerald', 'noir'];
+  const THEME_CLASSES = AVAILABLE_THEMES.map(theme => `theme-${theme}`);
+  const DEFAULT_THEME = AVAILABLE_THEMES[0];
   const QUALITY_PLACEHOLDERS = [
     'New paragraph…',
     'Step 1…',
@@ -107,18 +110,21 @@
     return stylesheetTextPromise;
   }
 
+  function normalizeTheme(theme) {
+    return AVAILABLE_THEMES.includes(theme) ? theme : DEFAULT_THEME;
+  }
+
   function getCurrentTheme() {
-    return document.body.classList.contains('theme-ft') ? 'ft' : 'iga';
+    return AVAILABLE_THEMES.find(theme => document.body.classList.contains(`theme-${theme}`)) || DEFAULT_THEME;
   }
 
   function setTheme(theme) {
-    document.body.classList.remove('theme-iga', 'theme-ft');
-    if (theme === 'ft') {
-      document.body.classList.add('theme-ft');
-      document.getElementById('theme-select').value = 'ft';
-    } else {
-      document.body.classList.add('theme-iga');
-      document.getElementById('theme-select').value = 'iga';
+    const normalized = normalizeTheme(theme);
+    document.body.classList.remove(...THEME_CLASSES);
+    document.body.classList.add(`theme-${normalized}`);
+    const select = document.getElementById('theme-select');
+    if (select) {
+      select.value = normalized;
     }
   }
 
@@ -337,7 +343,7 @@
     suppressSnapshots = true;
     try {
       const state = JSON.parse(serialized);
-      setTheme(state.theme || 'iga');
+      setTheme(state.theme || DEFAULT_THEME);
       if (state.model && Array.isArray(state.model.pages)) {
         renderDocumentModel(state.model);
       } else {
@@ -2494,7 +2500,7 @@
         const obj = JSON.parse(e.target.result);
         suppressSnapshots = true;
         if (Array.isArray(obj.pages)) {
-          setTheme(obj.theme === 'ft' ? 'ft' : 'iga');
+          setTheme(normalizeTheme(obj.theme));
           renderDocumentModel({ pages: obj.pages });
           suppressSnapshots = false;
           initHistory();
@@ -2509,7 +2515,7 @@
         if (!main) throw new Error('Invalid content wrapper');
 
         editorRoot.innerHTML = main.innerHTML;
-        setTheme(obj.theme === 'ft' ? 'ft' : 'iga');
+        setTheme(normalizeTheme(obj.theme));
         ensureFootnotesPage();
         updatePageNumbers();
         renumberFootnotes();
@@ -3335,7 +3341,7 @@
     clone.classList.add('standalone-export-root');
     const markup = clone.outerHTML;
     const css = stylesheet || '';
-    const safeTheme = theme === 'ft' ? 'ft' : 'iga';
+    const safeTheme = normalizeTheme(theme);
     const footnoteScript = `
 <script>
 (function(){
@@ -3708,7 +3714,7 @@ ${footnoteScript}
 
   document.getElementById('theme-select').addEventListener('change', function() {
     captureSnapshot();
-    setTheme(this.value === 'ft' ? 'ft' : 'iga');
+    setTheme(this.value);
     afterChange();
   });
 
