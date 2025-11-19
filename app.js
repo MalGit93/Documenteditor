@@ -1737,6 +1737,7 @@
     const baseUrl = deriveBaseUrl(shareUrl);
     const chartsExample = baseUrl ? `${baseUrl}charts/example.html` : 'charts/example.html';
     const embedSnippet = `<iframe src="${shareUrl}" title="IGA Executive Brief Designer" loading="lazy" style="width:100%;min-height:720px;border:0;"></iframe>`;
+    const standaloneIframePlaceholder = escapeHtml(`<iframe src="${chartsExample}" title="Standalone HTML" loading="lazy" style="width:100%;min-height:720px;border:0;"></iframe>`);
 
     openModal({
       title: 'Share & embed',
@@ -1753,11 +1754,59 @@
           <div class="copy-row copy-row--end">
             <button type="button" class="copy-btn" data-copy-target="#share-embed-snippet">Copy embed code</button>
           </div>
-          <p class="modal-helper-text">Tip: drop standalone chart HTML inside <code>/charts</code> (e.g. <code>${escapeHtml(chartsExample)}</code>) and reference them with iframe embeds inside the brief.</p>
+          <p class="modal-helper-text">Tip: drop standalone chart HTML inside <code>/charts</code> (e.g. <code>${escapeHtml(chartsExample)}</code>) and reuse them anywhere once Pages publishes the files.</p>
+          <div class="share-section" id="share-standalone">
+            <div class="share-section__header">
+              <h4>Standalone HTML</h4>
+              <p>Paste the relative path of any uploaded HTML (exports, AI dashboards, etc.) to instantly copy its public link or iframe snippet.</p>
+            </div>
+            <label for="share-standalone-path">Relative path</label>
+            <input type="text" id="share-standalone-path" placeholder="charts/dashboard.html" />
+            <label for="share-standalone-link">Published link</label>
+            <div class="copy-row">
+              <input type="text" id="share-standalone-link" value="" readonly placeholder="${escapeHtml(chartsExample)}" />
+              <button type="button" class="copy-btn" data-copy-target="#share-standalone-link">Copy</button>
+            </div>
+            <label for="share-standalone-embed">Iframe snippet</label>
+            <textarea id="share-standalone-embed" rows="3" readonly placeholder="${standaloneIframePlaceholder}"></textarea>
+            <div class="copy-row copy-row--end">
+              <button type="button" class="copy-btn" data-copy-target="#share-standalone-embed">Copy embed code</button>
+            </div>
+          </div>
         </div>
       `,
       confirmLabel: 'Close'
     });
+
+    const standalonePathInput = modalInner.querySelector('#share-standalone-path');
+    const standaloneLinkInput = modalInner.querySelector('#share-standalone-link');
+    const standaloneEmbedTextarea = modalInner.querySelector('#share-standalone-embed');
+
+    function resolveStandaloneUrl(path) {
+      if (!path) return '';
+      if (/^https?:\/\//i.test(path)) {
+        return path;
+      }
+      const cleaned = path.replace(/^\/+/, '');
+      return baseUrl ? baseUrl + cleaned : cleaned;
+    }
+
+    function updateStandaloneFields() {
+      const relativePath = (standalonePathInput.value || '').trim();
+      const resolvedUrl = resolveStandaloneUrl(relativePath);
+      if (!resolvedUrl) {
+        standaloneLinkInput.value = '';
+        standaloneEmbedTextarea.value = '';
+        return;
+      }
+      standaloneLinkInput.value = resolvedUrl;
+      standaloneEmbedTextarea.value = `<iframe src="${resolvedUrl}" title="Published HTML" loading="lazy" style="width:100%;min-height:720px;border:0;"></iframe>`;
+    }
+
+    if (standalonePathInput) {
+      standalonePathInput.addEventListener('input', updateStandaloneFields);
+      updateStandaloneFields();
+    }
 
     modalInner.querySelectorAll('[data-copy-target]').forEach(btn => {
       btn.addEventListener('click', () => {

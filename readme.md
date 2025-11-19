@@ -26,7 +26,13 @@ Use the new **Embed** block (Insert → Embed) to paste iframe-based visualisati
 
 GitHub Pages (or any static host) will automatically serve `index.html` from the repository root, so the editor works out of the box once you push the repo to GitHub and enable Pages. If you prefer to keep the project in a subfolder (for example `/docs`), move `index.html`, `styles.css`, and `app.js` into that folder, update any asset paths if needed, and point GitHub Pages at it. Because everything is client-side, no additional build configuration is required—just make sure the published branch/folder contains `index.html` so the live site renders the designer instead of the README preview.
 
-Use the **Share link** button to copy the deployed URL and a ready-made iframe snippet whenever you need to embed the designer or a standalone HTML export elsewhere (for example inside an internal handbook). The helper also reminds you that any exported chart HTML placed under `/charts` can be embedded back into the editor with relative URLs once Pages publishes the files.
+You can upload any additional HTML (for example `/charts/q1-scenario.html` or AI-generated dashboards) alongside the editor. Once Pages publishes the files:
+
+1. Drop the exported HTML in the repository, keeping the path relative to the published folder (e.g. `charts/q1-scenario.html`).
+2. Open the designer, click **Share link**, and use the new **Standalone HTML** section to paste that relative path.
+3. Copy the published URL or iframe snippet that appears immediately in the modal—perfect for intranet embeds, wiki documentation, or customer updates that reuse the hosted dashboards.
+
+The helper still exposes the deployed editor URL for the main experience, and it reminds you that anything under `/charts` can be embedded back into the brief with relative URLs once Pages republishes the changes.
 
 ## Accessibility & quality checks
 
