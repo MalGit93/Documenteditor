@@ -39,7 +39,7 @@
   let suppressSnapshots = false;
 
   const loadedScriptPromises = new Map();
-  let pdfMakeReadyPromise = null;
+  let htmlToPdfReadyPromise = null;
 
   function loadScriptOnce(src) {
     if (!src) return Promise.reject(new Error('Missing script source'));
@@ -58,18 +58,17 @@
     return promise;
   }
 
-  function ensurePdfMakeReady() {
-    if (window.pdfMake && window.pdfMake.createPdf) return Promise.resolve();
-    if (!pdfMakeReadyPromise) {
-      pdfMakeReadyPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/pdfmake@0.2.7/build/pdfmake.min.js')
-        .then(() => loadScriptOnce('https://cdn.jsdelivr.net/npm/pdfmake@0.2.7/build/vfs_fonts.js'))
+  function ensureHtmlToPdfReady() {
+    if (window.html2pdf) return Promise.resolve();
+    if (!htmlToPdfReadyPromise) {
+      htmlToPdfReadyPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js')
         .catch(err => {
-          pdfMakeReadyPromise = null;
+          htmlToPdfReadyPromise = null;
           throw err;
         });
     }
-    return pdfMakeReadyPromise.then(() => {
-      if (!window.pdfMake || !window.pdfMake.createPdf) {
+    return htmlToPdfReadyPromise.then(() => {
+      if (!window.html2pdf) {
         throw new Error('PDF library unavailable');
       }
     });
@@ -3042,62 +3041,68 @@
     runQualityCheck({ onContinue: performExport });
   }
 
+  function buildPdfExportRoot() {
+    const editor = document.getElementById('editor-root');
+    if (!editor) return null;
+    const clone = editor.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.classList.add('pdf-export-root');
+    const removalSelectors = [
+      '.page-controls',
+      '.delete-icon',
+      '.page-overlay',
+      '.overflow-indicator',
+      '.col-resize-handle',
+      '.table-controls'
+    ];
+    removalSelectors.forEach(selector => {
+      clone.querySelectorAll(selector).forEach(el => el.remove());
+    });
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    clone.querySelectorAll('.block-selected').forEach(el => el.classList.remove('block-selected'));
+    return clone;
+  }
+
   function exportEditablePdf() {
     const performExport = () => {
-      if (!window.pdfMake) {
-        showSnackbar('PDF generator unavailable');
+      clearBlockSelection();
+      hideTextToolbar();
+      hideBlockActions();
+      const clone = buildPdfExportRoot();
+      if (!clone) {
+        showSnackbar('Nothing to export');
         return;
       }
-      const model = buildDocumentModel();
-      const pages = Array.isArray(model.pages) ? model.pages : [];
-      const content = [];
-      const contentPages = pages.filter(page => page.type !== 'footnotes');
-      contentPages.forEach((page, index) => {
-        (page.blocks || []).forEach(block => {
-          const nodes = blockToPdfNodes(block);
-          if (Array.isArray(nodes)) {
-            nodes.forEach(node => node && content.push(node));
-          } else if (nodes) {
-            content.push(nodes);
-          }
-        });
-        if (index < contentPages.length - 1) {
-          content.push({ text: '', pageBreak: 'after' });
-        }
-      });
-      const footnotesPage = pages.find(page => page.type === 'footnotes');
-      if (footnotesPage && Array.isArray(footnotesPage.footnotes) && footnotesPage.footnotes.length) {
-        content.push({ text: 'Footnotes', style: 'heading3', margin: [0, 16, 0, 4] });
-        footnotesPage.footnotes.forEach((item, index) => {
-          const paragraphs = htmlToParagraphFragments(item.html);
-          paragraphs.forEach((fragments, lineIndex) => {
-            const prefix = lineIndex === 0 ? `${index + 1}. ` : '   ';
-            const combined = [{ text: prefix }].concat(fragments.map(cloneFragment));
-            content.push({ text: fragmentsToPdfInlines(combined), style: 'footnote', margin: [0, 2, 0, 2] });
-          });
-        });
-      }
-      if (!content.length) {
-        content.push({ text: '' });
-      }
-      const docDefinition = {
-        info: { title: 'Executive Brief' },
-        content,
-        styles: {
-          heading1: { fontSize: 20, bold: true, margin: [0, 12, 0, 6] },
-          heading2: { fontSize: 16, bold: true, margin: [0, 10, 0, 4] },
-          heading3: { fontSize: 14, bold: true, margin: [0, 8, 0, 4] },
-          body: { fontSize: 11, margin: [0, 4, 0, 4] },
-          footnote: { fontSize: 9, italics: true }
-        },
-        defaultStyle: { fontSize: 11 }
+      const staging = document.createElement('div');
+      staging.className = 'pdf-export-container';
+      staging.appendChild(clone);
+      document.body.appendChild(staging);
+      const scale = Math.min(3, Math.max(window.devicePixelRatio || 1, 2));
+      const options = {
+        filename: 'executive-brief.pdf',
+        margin: 0,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale, useCORS: true, logging: false },
+        pagebreak: { mode: ['css', 'legacy'] },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
-      window.pdfMake.createPdf(docDefinition).download('executive-brief.pdf');
-      showSnackbar('Editable PDF exported');
+      const instance = window.html2pdf().set(options).from(clone);
+      instance
+        .save()
+        .then(() => {
+          showSnackbar('Editable PDF exported');
+        })
+        .catch(err => {
+          console.error(err);
+          showSnackbar('PDF export failed');
+        })
+        .finally(() => {
+          staging.remove();
+        });
     };
 
     const attemptExport = () => {
-      const ready = (window.pdfMake && window.pdfMake.createPdf) ? Promise.resolve() : ensurePdfMakeReady();
+      const ready = window.html2pdf ? Promise.resolve() : ensureHtmlToPdfReady();
       ready.then(performExport).catch(err => {
         console.error(err);
         showSnackbar('PDF generator unavailable');
