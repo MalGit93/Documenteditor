@@ -23,8 +23,19 @@
     'What we need them to do…',
     'Key dates…',
     'Add an explanatory caption…',
+    'Add context for this embed…',
     'Your footnote text here.'
   ];
+
+  function escapeHtml(str = '') {
+    return String(str).replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[ch] || ch);
+  }
 
   const INTERNAL_MARKER_START = '<!--EBD_INTERNAL_START-->';
   const INTERNAL_MARKER_END = '<!--EBD_INTERNAL_END-->';
@@ -38,41 +49,7 @@
   let inputSnapshotTimer = null;
   let suppressSnapshots = false;
 
-  const loadedScriptPromises = new Map();
-  let htmlToPdfReadyPromise = null;
-
-  function loadScriptOnce(src) {
-    if (!src) return Promise.reject(new Error('Missing script source'));
-    if (loadedScriptPromises.has(src)) {
-      return loadedScriptPromises.get(src);
-    }
-    const promise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Failed to load ' + src));
-      document.head.appendChild(script);
-    });
-    loadedScriptPromises.set(src, promise);
-    return promise;
-  }
-
-  function ensureHtmlToPdfReady() {
-    if (window.html2pdf) return Promise.resolve();
-    if (!htmlToPdfReadyPromise) {
-      htmlToPdfReadyPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js')
-        .catch(err => {
-          htmlToPdfReadyPromise = null;
-          throw err;
-        });
-    }
-    return htmlToPdfReadyPromise.then(() => {
-      if (!window.html2pdf) {
-        throw new Error('PDF library unavailable');
-      }
-    });
-  }
+  let stylesheetTextPromise = null;
 
   // For column resizing
   let tableResizeState = null;
@@ -120,6 +97,14 @@
         closeModal();
       }
     });
+  }
+
+  function fetchStylesheetText() {
+    if (stylesheetTextPromise) return stylesheetTextPromise;
+    stylesheetTextPromise = fetch('styles.css')
+      .then(resp => (resp.ok ? resp.text() : ''))
+      .catch(() => '');
+    return stylesheetTextPromise;
   }
 
   function getCurrentTheme() {
@@ -1573,6 +1558,133 @@
     });
   }
 
+  function isSafeEmbedUrl(value) {
+    if (!value) return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^javascript:/i.test(trimmed)) return false;
+    if (/^data:/i.test(trimmed) && !trimmed.toLowerCase().startsWith('data:image/')) return false;
+    return /^(https?:)?\/\//i.test(trimmed);
+  }
+
+  function sanitizeEmbedHTML(input) {
+    if (!input) return '';
+    const template = document.createElement('template');
+    template.innerHTML = input;
+    const allowedTags = new Set(['iframe', 'div', 'span', 'p', 'img', 'video', 'audio', 'canvas', 'svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'g', 'strong', 'em', 'figure', 'figcaption']);
+    const allowedAttrs = new Set(['src', 'href', 'width', 'height', 'style', 'class', 'title', 'frameborder', 'allow', 'allowfullscreen', 'referrerpolicy', 'loading', 'viewbox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'poster', 'type', 'controls', 'id', 'role', 'name']);
+    const urlAttrs = new Set(['src', 'href', 'poster']);
+    Array.from(template.content.querySelectorAll('*')).forEach(el => {
+      const tagName = el.tagName.toLowerCase();
+      if (!allowedTags.has(tagName)) {
+        el.replaceWith(...Array.from(el.childNodes));
+        return;
+      }
+      Array.from(el.attributes).forEach(attr => {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on')) {
+          el.removeAttribute(attr.name);
+          return;
+        }
+        if (name.startsWith('data-') || name.startsWith('aria-')) {
+          return;
+        }
+        if (!allowedAttrs.has(name)) {
+          el.removeAttribute(attr.name);
+          return;
+        }
+        if (urlAttrs.has(name) && attr.value && !isSafeEmbedUrl(attr.value)) {
+          el.removeAttribute(attr.name);
+        }
+      });
+      el.removeAttribute('contenteditable');
+      if (tagName === 'iframe') {
+        el.setAttribute('loading', el.getAttribute('loading') || 'lazy');
+        if (!el.getAttribute('title')) {
+          el.setAttribute('title', 'Embedded content');
+        }
+      }
+    });
+    return template.innerHTML.trim();
+  }
+
+  function createEmbedBlock(html, captionText) {
+    const caption = captionText && captionText.trim() ? captionText.trim() : 'Add context for this embed…';
+    const div = document.createElement('div');
+    div.className = 'embed-block page-break-avoider';
+    div.dataset.deletable = 'true';
+    div.innerHTML = `
+      ${DELETE_ICON_HTML}
+      <div class="embed-header" contenteditable="false">
+        <span>Embedded content</span>
+        <button type="button" data-embed-edit contenteditable="false">Edit embed</button>
+      </div>
+      <div class="embed-preview" contenteditable="false">${html}</div>
+      <div class="embed-caption" contenteditable="true">${escapeHtml(caption)}</div>
+    `;
+    return div;
+  }
+
+  function updateEmbedBlock(block, html, captionText) {
+    if (!block) return;
+    const preview = block.querySelector('.embed-preview');
+    if (preview) {
+      preview.innerHTML = html;
+    }
+    const caption = block.querySelector('.embed-caption');
+    if (caption) {
+      caption.textContent = captionText && captionText.trim() ? captionText.trim() : 'Add context for this embed…';
+    }
+  }
+
+  function addEmbedBlock(html, captionText) {
+    if (!html) return;
+    const body = getActiveContentPageBody();
+    if (!body) return;
+    captureSnapshot();
+    const block = createEmbedBlock(html, captionText);
+    body.appendChild(block);
+    afterChange();
+    ensureBlockVisible(block);
+  }
+
+  function openEmbedModal(existingBlock = null) {
+    const preview = existingBlock ? existingBlock.querySelector('.embed-preview') : null;
+    const captionEl = existingBlock ? existingBlock.querySelector('.embed-caption') : null;
+    const currentHtml = preview ? preview.innerHTML.trim() : '';
+    const currentCaption = captionEl ? captionEl.textContent.trim() : '';
+    openModal({
+      title: existingBlock ? 'Edit embedded content' : 'Add embedded content',
+      body: `
+        <label for="embed-caption-input">Caption / context (optional)</label>
+        <input type="text" id="embed-caption-input" placeholder="Add context for this embed…" value="${escapeHtml(currentCaption)}" />
+        <label for="embed-html-input">Embed code</label>
+        <textarea id="embed-html-input" rows="6" placeholder="<iframe src='https://example.com'></iframe>">${escapeHtml(currentHtml)}</textarea>
+        <p class="modal-helper-text">Supports iframe, video, Flourish, Datawrapper and similar embeds. Unsafe scripts are removed automatically.</p>
+      `,
+      onConfirm: () => {
+        const htmlInput = modalInner.querySelector('#embed-html-input');
+        const captionInput = modalInner.querySelector('#embed-caption-input');
+        const rawHtml = (htmlInput.value || '').trim();
+        const sanitized = sanitizeEmbedHTML(rawHtml);
+        if (!sanitized) {
+          showSnackbar('Provide a valid embed snippet (iframe, video, etc).');
+          return;
+        }
+        const caption = captionInput.value.trim();
+        if (existingBlock) {
+          captureSnapshot();
+          updateEmbedBlock(existingBlock, sanitized, caption);
+          afterChange();
+          ensureBlockVisible(existingBlock);
+        } else {
+          addEmbedBlock(sanitized, caption);
+        }
+        closeModal();
+      }
+    });
+  }
+
   /* -------- Modal helpers -------- */
 
   function openModal({ title, body, onConfirm, onCancel, confirmLabel = 'OK', cancelLabel = 'Cancel' }) {
@@ -2138,6 +2250,18 @@
       }
     });
 
+    editorRoot.querySelectorAll('.embed-block').forEach(block => {
+      const preview = block.querySelector('.embed-preview');
+      const captionEl = block.querySelector('.embed-caption');
+      const captionText = captionEl ? captionEl.textContent.trim() : '';
+      if (!preview || !preview.innerHTML.trim()) {
+        issues.add('Fill embed blocks with a valid iframe, video or chart snippet.');
+      }
+      if (!captionText || captionText === 'Add context for this embed…') {
+        issues.add('Give embedded content a descriptive caption.');
+      }
+    });
+
     const unresolvedRefs = Array.from(editorRoot.querySelectorAll('.footnote-ref')).some(ref => (ref.textContent || '').includes('?'));
     if (unresolvedRefs) {
       issues.add('Resolve placeholder footnote references [?].');
@@ -2555,6 +2679,14 @@
       const rows = extractTableRows(block.html);
       if (!rows.length) return [];
       return [{ type: 'table', rows }];
+    }
+    if (Array.isArray(block.classes) && block.classes.includes('embed-block')) {
+      const temp = document.createElement('div');
+      temp.innerHTML = block.html || '';
+      const caption = temp.querySelector('.embed-caption');
+      const captionText = caption ? htmlToPlainText(caption.innerHTML) : '';
+      const label = captionText ? `Embedded content: ${captionText}` : 'Embedded interactive content';
+      return [{ type: 'paragraph', style: 'BodyText', fragments: [{ text: `[${label}]` }] }];
     }
     const listData = extractListData(block.html);
     if (listData) {
@@ -3041,11 +3173,12 @@
     runQualityCheck({ onContinue: performExport });
   }
 
-  function buildPdfExportRoot() {
+  function buildReadOnlyExportRoot() {
     const editor = document.getElementById('editor-root');
     if (!editor) return null;
     const clone = editor.cloneNode(true);
     clone.removeAttribute('id');
+    clone.id = 'executive-brief';
     clone.classList.add('pdf-export-root');
     const removalSelectors = [
       '.page-controls',
@@ -3063,53 +3196,86 @@
     return clone;
   }
 
-  function exportEditablePdf() {
+  function buildStandaloneHtmlDocument(clone, theme, stylesheet) {
+    if (!clone) return '';
+    clone.classList.add('standalone-export-root');
+    const markup = clone.outerHTML;
+    const css = stylesheet || '';
+    const safeTheme = theme === 'ft' ? 'ft' : 'iga';
+    const footnoteScript = `
+<script>
+(function(){
+  function scrollToTarget(el){
+    if(!el) return;
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    el.classList.add('footnote-highlight');
+    setTimeout(function(){ el.classList.remove('footnote-highlight'); }, 1200);
+  }
+  document.addEventListener('click', function(event){
+    var ref = event.target.closest && event.target.closest('.footnote-ref');
+    if(ref && ref.dataset && ref.dataset.uniqueId){
+      event.preventDefault();
+      var note = document.querySelector('#footnote-list li[data-unique-id="' + ref.dataset.uniqueId + '"]');
+      scrollToTarget(note);
+      return;
+    }
+    var ret = event.target.closest && event.target.closest('.footnote-return');
+    if(ret && ret.dataset && ret.dataset.uniqueId){
+      event.preventDefault();
+      var refEl = document.querySelector('.footnote-ref[data-unique-id="' + ret.dataset.uniqueId + '"]');
+      scrollToTarget(refEl);
+    }
+  });
+})();
+</script>`;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Executive Brief</title>
+<style>${css}</style>
+</head>
+<body class="theme-${safeTheme} standalone-export">
+${markup}
+${footnoteScript}
+</body>
+</html>`;
+  }
+
+  function exportStandaloneHtml() {
     const performExport = () => {
       clearBlockSelection();
       hideTextToolbar();
       hideBlockActions();
-      const clone = buildPdfExportRoot();
+      const clone = buildReadOnlyExportRoot();
       if (!clone) {
         showSnackbar('Nothing to export');
         return;
       }
-      const staging = document.createElement('div');
-      staging.className = 'pdf-export-container';
-      staging.appendChild(clone);
-      document.body.appendChild(staging);
-      const scale = Math.min(3, Math.max(window.devicePixelRatio || 1, 2));
-      const options = {
-        filename: 'executive-brief.pdf',
-        margin: 0,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale, useCORS: true, logging: false },
-        pagebreak: { mode: ['css', 'legacy'] },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      const instance = window.html2pdf().set(options).from(clone);
-      instance
-        .save()
-        .then(() => {
-          showSnackbar('Editable PDF exported');
+      const theme = getCurrentTheme();
+      fetchStylesheetText()
+        .then(stylesheet => {
+          const html = buildStandaloneHtmlDocument(clone, theme, stylesheet);
+          if (!html) throw new Error('Failed to build HTML');
+          const blob = new Blob([html], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'executive-brief.html';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          showSnackbar('HTML exported');
         })
         .catch(err => {
           console.error(err);
-          showSnackbar('PDF export failed');
-        })
-        .finally(() => {
-          staging.remove();
+          showSnackbar('HTML export failed');
         });
     };
 
-    const attemptExport = () => {
-      const ready = window.html2pdf ? Promise.resolve() : ensureHtmlToPdfReady();
-      ready.then(performExport).catch(err => {
-        console.error(err);
-        showSnackbar('PDF generator unavailable');
-      });
-    };
-
-    runQualityCheck({ onContinue: attemptExport });
+    runQualityCheck({ onContinue: performExport });
   }
 
   function scheduleInputSnapshot() {
@@ -3139,6 +3305,17 @@
       e.preventDefault();
       e.stopPropagation();
       scrollToFootnoteNote(footnoteRef.dataset.uniqueId);
+      return;
+    }
+
+    const embedEdit = target.closest('[data-embed-edit]');
+    if (embedEdit) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = embedEdit.closest('.embed-block');
+      if (block) {
+        openEmbedModal(block);
+      }
       return;
     }
 
@@ -3409,8 +3586,8 @@
   document.getElementById('redo-btn').addEventListener('click', redo);
   const exportDocxBtn = document.getElementById('export-docx');
   if (exportDocxBtn) exportDocxBtn.addEventListener('click', exportDocx);
-  const exportPdfBtn = document.getElementById('export-pdf');
-  if (exportPdfBtn) exportPdfBtn.addEventListener('click', exportEditablePdf);
+  const exportHtmlBtn = document.getElementById('export-html');
+  if (exportHtmlBtn) exportHtmlBtn.addEventListener('click', exportStandaloneHtml);
   document.getElementById('export-json').addEventListener('click', exportJSON);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   document.getElementById('print-btn').addEventListener('click', () => window.print());
@@ -3433,7 +3610,8 @@
     'table-glance': addAtAGlanceTable,
     'table-bai': addBAITable,
     'table-custom': openCustomTableModal,
-    image: openImageModal
+    image: openImageModal,
+    embed: () => openEmbedModal()
   };
 
   document.querySelectorAll('[data-add]').forEach(btn => {
