@@ -1,7 +1,9 @@
 :root {
       --page-width: 210mm;
       --page-height: 297mm;
-      --page-scale: clamp(0.5, calc((100vw - 48px) / var(--page-width)), 1);
+      --page-width-px: 793.7px; /* 210mm @ 96dpi */
+      --page-scale-raw: calc((100vw - 48px) / var(--page-width-px));
+      --page-scale: clamp(0.5, var(--page-scale-raw), 1);
       --page-width-screen: calc(var(--page-width) * var(--page-scale));
       --page-height-screen: calc(var(--page-height) * var(--page-scale));
       --page-margin: 12mm;
@@ -274,6 +276,7 @@
     body.standalone-export {
       background: #f1f5f9;
       padding: 24px 12px;
+      --page-scale: 1;
     }
 
     body.standalone-export .pdf-export-root {
