@@ -4,7 +4,7 @@ A single-page, client-side editor for producing themed executive briefs. It supp
 
 ## Running locally
 
-Open `Maineditor (4) (1).html` in any modern browser. No build step is required, but you can also serve the directory via a lightweight server, e.g.
+Open `index.html` in any modern browser. No build step is required, but you can also serve the directory via a lightweight server, e.g.
 
 ```bash
 python3 -m http.server 8000
@@ -21,6 +21,10 @@ python3 -m http.server 8000
 ## Embedded content
 
 Use the new **Embed** block (Insert → Embed) to paste iframe-based visualisations, videos, or dashboards. The editor sanitises the snippet, keeps it read-only inside the canvas, and ensures each embed carries a caption so recipients know what they are viewing. Embedded content is preserved in DOCX/HTML exports (DOCX receives a descriptive placeholder, while HTML keeps the live embed).
+
+## Publishing on GitHub Pages
+
+GitHub Pages (or any static host) will automatically serve `index.html` from the repository root, so the editor works out of the box once you push the repo to GitHub and enable Pages. If you prefer to keep the project in a subfolder (for example `/docs`), move `index.html`, `styles.css`, and `app.js` into that folder, update any asset paths if needed, and point GitHub Pages at it. Because everything is client-side, no additional build configuration is required—just make sure the published branch/folder contains `index.html` so the live site renders the designer instead of the README preview.
 
 ## Accessibility & quality checks
 
