@@ -1,7 +1,9 @@
 :root {
       --page-width: 210mm;
       --page-height: 297mm;
-      --page-scale: clamp(0.5, calc((100vw - 48px) / var(--page-width)), 1);
+      --page-width-px: 793.7px; /* 210mm @ 96dpi */
+      --page-scale-raw: calc((100vw - 48px) / var(--page-width-px));
+      --page-scale: clamp(0.5, var(--page-scale-raw), 1);
       --page-width-screen: calc(var(--page-width) * var(--page-scale));
       --page-height-screen: calc(var(--page-height) * var(--page-scale));
       --page-margin: 12mm;
@@ -261,14 +263,6 @@
       align-items: center;
     }
 
-    .pdf-export-container {
-      position: fixed;
-      left: -9999px;
-      top: -9999px;
-      opacity: 0;
-      pointer-events: none;
-    }
-
     .pdf-export-root {
       --page-scale: 1;
       --page-width-screen: var(--page-width);
@@ -277,6 +271,25 @@
       flex-direction: column;
       gap: 16px;
       align-items: center;
+    }
+
+    body.standalone-export {
+      background: #f1f5f9;
+      padding: 24px 12px;
+      --page-scale: 1;
+    }
+
+    body.standalone-export .pdf-export-root {
+      margin: 0 auto;
+    }
+
+    body.standalone-export .page-container {
+      margin: 0 auto 24px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    body.standalone-export .page-footer {
+      text-align: center;
     }
 
     .pdf-export-root .page-container {
@@ -804,6 +817,74 @@
       text-align: center;
     }
 
+    /* Embed blocks */
+    .embed-block {
+      margin: 12px 0;
+      padding: 10px;
+      border: 1px dashed var(--divider-color);
+      border-radius: var(--border-radius-md);
+      background: var(--block-bg-softer);
+      font-size: 11px;
+    }
+
+    .embed-block .embed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-family: var(--ui-font);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted-text);
+    }
+
+    .embed-block [data-embed-edit] {
+      border: none;
+      background: rgba(17,24,39,0.08);
+      padding: 2px 6px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 10px;
+      color: var(--text-color);
+    }
+
+    .embed-block [data-embed-edit]:hover {
+      background: rgba(17,24,39,0.14);
+    }
+
+    .embed-preview {
+      border: 1px solid var(--divider-color);
+      border-radius: var(--border-radius-sm);
+      background: #fff;
+      min-height: 200px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .embed-preview iframe,
+    .embed-preview video,
+    .embed-preview canvas {
+      width: 100%;
+      min-height: 200px;
+      border: none;
+      display: block;
+    }
+
+    .embed-preview audio,
+    .embed-preview img {
+      width: 100%;
+      border: none;
+      display: block;
+    }
+
+    .embed-caption {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted-text);
+    }
+
     /* Footnotes page */
     .footnotes-page .page-body {
       padding-top: 18px;
@@ -1039,6 +1120,12 @@
       color: #e5e7eb;
       margin-bottom: 4px;
       outline: none;
+    }
+
+    .modal-inner .modal-helper-text {
+      font-size: 10px;
+      color: #94a3b8;
+      margin: 2px 0 6px;
     }
 
     .modal-actions {
