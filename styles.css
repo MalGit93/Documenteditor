@@ -934,12 +934,29 @@
 
     /* Embed blocks */
     .embed-block {
+      --embed-max-width: 100%;
+      --embed-min-height: 320px;
       margin: 12px 0;
       padding: 10px;
       border: 1px dashed var(--divider-color);
       border-radius: var(--border-radius-md);
       background: var(--block-bg-softer);
       font-size: 11px;
+    }
+
+    .embed-block.embed-size-full {
+      --embed-max-width: 100%;
+      --embed-min-height: 360px;
+    }
+
+    .embed-block.embed-size-medium {
+      --embed-max-width: 80%;
+      --embed-min-height: 260px;
+    }
+
+    .embed-block.embed-size-small {
+      --embed-max-width: 60%;
+      --embed-min-height: 200px;
     }
 
     .embed-block .embed-header {
@@ -973,16 +990,19 @@
       border: 1px solid var(--divider-color);
       border-radius: var(--border-radius-sm);
       background: #fff;
-      min-height: 200px;
+      min-height: var(--embed-min-height);
       overflow: hidden;
       position: relative;
+      width: var(--embed-max-width);
+      max-width: 100%;
+      margin: 0 auto;
     }
 
     .embed-preview iframe,
     .embed-preview video,
     .embed-preview canvas {
       width: 100%;
-      min-height: 200px;
+      min-height: var(--embed-min-height);
       border: none;
       display: block;
     }
