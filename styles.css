@@ -261,6 +261,51 @@
       align-items: center;
     }
 
+    .pdf-export-container {
+      position: fixed;
+      left: -9999px;
+      top: -9999px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .pdf-export-root {
+      --page-scale: 1;
+      --page-width-screen: var(--page-width);
+      --page-height-screen: var(--page-height);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .pdf-export-root .page-container {
+      width: var(--page-width);
+      max-width: none;
+      height: var(--page-height);
+      max-height: none;
+      box-shadow: none;
+      overflow: hidden;
+      page-break-after: always;
+    }
+
+    .pdf-export-root .page-container:last-child {
+      page-break-after: auto;
+    }
+
+    .pdf-export-root .page-body {
+      overflow: visible;
+    }
+
+    .pdf-export-root .page-controls,
+    .pdf-export-root .delete-icon,
+    .pdf-export-root .page-overlay,
+    .pdf-export-root .overflow-indicator,
+    .pdf-export-root .table-controls,
+    .pdf-export-root .col-resize-handle {
+      display: none !important;
+    }
+
     /* Page containers */
     .page-container {
       position: relative;
