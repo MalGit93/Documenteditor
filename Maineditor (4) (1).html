@@ -1525,6 +1525,7 @@
 
   function afterChange() {
     if (suppressSnapshots) return;
+    repairOrphanContentBlocks();
     lastSerialized = serializeState();
     checkAllPageOverflow();
     persistDraft(lastSerialized);
@@ -1540,14 +1541,15 @@
       updatePageNumbers();
       renumberFootnotes();
       initAllTableResizers();
+      repairOrphanContentBlocks();
       checkAllPageOverflow();
     } catch (e) {
       console.error(e);
       showSnackbar('Failed to apply state');
     }
     suppressSnapshots = false;
-    lastSerialized = serialized;
-    persistDraft(serialized);
+    lastSerialized = serializeState();
+    persistDraft(lastSerialized);
   }
 
   function undo() {
@@ -2081,6 +2083,78 @@
     span.setAttribute('tabindex', '0');
     span.setAttribute('aria-label', 'Delete block');
     span.textContent = '×';
+  }
+
+  function createTextBlockShell() {
+    const p = document.createElement('p');
+    p.className = 'body-text';
+    p.dataset.deletable = 'true';
+    p.contentEditable = 'true';
+    return p;
+  }
+
+  const INLINE_ORPHAN_TAGS = new Set(['SPAN','STRONG','EM','B','I','A','SUP','SUB','BR']);
+
+  function ensureDeleteIcon(node) {
+    if (!node) return;
+    const hasIcon = Array.from(node.children || []).some(child => child.classList && child.classList.contains('delete-icon'));
+    if (!hasIcon) {
+      const icon = document.createElement('span');
+      decorateDeleteIcon(icon);
+      node.appendChild(icon);
+    }
+  }
+
+  function convertElementToEditableBlock(node) {
+    if (!node || node.closest('.footnotes-page')) return;
+    node.dataset.deletable = 'true';
+    if (!node.classList.contains('body-text') && !node.classList.contains('section-heading') && node.tagName !== 'H1' && node.tagName !== 'H2' && node.tagName !== 'H3' && node.tagName !== 'H4' && node.tagName !== 'H5' && node.tagName !== 'H6') {
+      node.classList.add('body-text');
+    }
+    if (!node.matches('table,thead,tbody,tr,td,th')) {
+      if (!node.hasAttribute('contenteditable')) node.contentEditable = 'true';
+    }
+    ensureDeleteIcon(node);
+  }
+
+  function wrapOrphanNodeInBlock(node, body) {
+    if (!body) return;
+    const reference = node.nextSibling;
+    const block = createTextBlockShell();
+    const icon = document.createElement('span');
+    decorateDeleteIcon(icon);
+
+    block.appendChild(node);
+    block.appendChild(icon);
+    body.insertBefore(block, reference);
+  }
+
+  function repairOrphanContentBlocks() {
+    const bodies = editorRoot.querySelectorAll('.page-container:not(.footnotes-page) .page-body');
+    bodies.forEach(body => {
+      const nodes = Array.from(body.childNodes);
+      nodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (!(node.textContent || '').trim()) {
+            node.remove();
+            return;
+          }
+          wrapOrphanNodeInBlock(node, body);
+          return;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          node.remove();
+          return;
+        }
+        if (node.dataset && node.dataset.deletable === 'true') return;
+        if (node.classList.contains('overflow-indicator')) return;
+        if (INLINE_ORPHAN_TAGS.has(node.tagName)) {
+          wrapOrphanNodeInBlock(node, body);
+        } else {
+          convertElementToEditableBlock(node);
+        }
+      });
+    });
   }
 
   function createPage(options = {}) {
@@ -2774,12 +2848,20 @@
 
   function sanitizeExternalHTML(html) {
     const allowedTags = new Set([
-      'P','H1','H2','H3','H4','UL','OL','LI','A','STRONG','EM',
-      'B','I','TABLE','TBODY','THEAD','TR','TD','TH','BLOCKQUOTE','BR','SPAN'
+      'P','H1','H2','H3','H4','H5','H6','UL','OL','LI','A','STRONG','EM',
+      'B','I','TABLE','TBODY','THEAD','TR','TD','TH','BLOCKQUOTE','BR','SPAN',
+      'DIV','SECTION','ARTICLE','FIGURE','FIGCAPTION','SUP','SUB','IMG','HR'
     ]);
     const allowedAttrs = {
       'A': ['href'],
-      'TD': [], 'TH': [], 'TABLE': [], 'TR': [], 'P': [], 'BLOCKQUOTE': [], 'SPAN': []
+      'IMG': ['src','alt','title'],
+      'TD': ['colspan','rowspan'],
+      'TH': ['colspan','rowspan','scope'],
+      'TABLE': [],
+      'TR': [],
+      'P': [],
+      'BLOCKQUOTE': [],
+      'SPAN': []
     };
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -2798,10 +2880,32 @@
       const el = document.createElement(node.tagName.toLowerCase());
       const allowed = allowedAttrs[node.tagName] || [];
       for (let attr of Array.from(node.attributes)) {
-        if (attr.name.toLowerCase() === 'href' && /^https?:\/\//i.test(attr.value)) {
-          el.setAttribute('href', attr.value);
-        } else if (allowed.includes(attr.name.toLowerCase())) {
-          el.setAttribute(attr.name, attr.value);
+        const name = attr.name.toLowerCase();
+        const value = attr.value;
+        if (node.tagName === 'A' && name === 'href') {
+          if (/^https?:\/\//i.test(value)) el.setAttribute('href', value);
+          continue;
+        }
+        if (node.tagName === 'IMG' && name === 'src') {
+          if (/^(https?:|data:image)/i.test(value)) el.setAttribute('src', value);
+          continue;
+        }
+        if (allowed.includes(name)) {
+          el.setAttribute(attr.name, value);
+          continue;
+        }
+        if (name === 'class' || name === 'id' || name === 'title' || name === 'role' || name === 'tabindex') {
+          el.setAttribute(attr.name, value);
+          continue;
+        }
+        if (name === 'contenteditable') {
+          const normalized = value === 'false' ? 'false' : 'true';
+          el.setAttribute('contenteditable', normalized);
+          continue;
+        }
+        if (name.startsWith('data-') || name.startsWith('aria-')) {
+          el.setAttribute(attr.name, value);
+          continue;
         }
       }
       node.childNodes.forEach(child => {
