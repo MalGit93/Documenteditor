@@ -10,6 +10,9 @@
   const DELETE_ICON_HTML = '<span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>';
   const DRAFT_STORAGE_KEY = 'igaEbdDraft';
   const AVAILABLE_THEMES = ['iga', 'ft', 'slate', 'emerald', 'noir'];
+  const EMBED_SIZES = ['full', 'medium', 'small'];
+  const EMBED_SIZE_CLASSES = EMBED_SIZES.map(size => `embed-size-${size}`);
+  const DEFAULT_EMBED_SIZE = EMBED_SIZES[0];
   const THEME_LABELS = {
     iga: 'IGA',
     ft: 'FT-style',
@@ -1661,7 +1664,33 @@
     return template.innerHTML.trim();
   }
 
-  function createEmbedBlock(html, captionText) {
+  function normalizeEmbedSize(size) {
+    const normalized = typeof size === 'string' ? size.trim().toLowerCase() : '';
+    return EMBED_SIZES.includes(normalized) ? normalized : DEFAULT_EMBED_SIZE;
+  }
+
+  function applyEmbedSize(block, size) {
+    if (!block) return;
+    const normalized = normalizeEmbedSize(size);
+    block.dataset.embedSize = normalized;
+    block.classList.remove(...EMBED_SIZE_CLASSES);
+    block.classList.add(`embed-size-${normalized}`);
+  }
+
+  function getEmbedSizeFromBlock(block) {
+    if (!block) return DEFAULT_EMBED_SIZE;
+    if (block.dataset && block.dataset.embedSize) {
+      return normalizeEmbedSize(block.dataset.embedSize);
+    }
+    for (const cls of block.classList || []) {
+      if (cls && cls.startsWith('embed-size-')) {
+        return normalizeEmbedSize(cls.replace('embed-size-', ''));
+      }
+    }
+    return DEFAULT_EMBED_SIZE;
+  }
+
+  function createEmbedBlock(html, captionText, size) {
     const caption = captionText && captionText.trim() ? captionText.trim() : 'Add context for this embed…';
     const div = document.createElement('div');
     div.className = 'embed-block page-break-avoider';
@@ -1675,10 +1704,11 @@
       <div class="embed-preview" contenteditable="false">${html}</div>
       <div class="embed-caption" contenteditable="true">${escapeHtml(caption)}</div>
     `;
+    applyEmbedSize(div, size);
     return div;
   }
 
-  function updateEmbedBlock(block, html, captionText) {
+  function updateEmbedBlock(block, html, captionText, size) {
     if (!block) return;
     const preview = block.querySelector('.embed-preview');
     if (preview) {
@@ -1688,14 +1718,15 @@
     if (caption) {
       caption.textContent = captionText && captionText.trim() ? captionText.trim() : 'Add context for this embed…';
     }
+    applyEmbedSize(block, size || getEmbedSizeFromBlock(block));
   }
 
-  function addEmbedBlock(html, captionText) {
+  function addEmbedBlock(html, captionText, size = DEFAULT_EMBED_SIZE) {
     if (!html) return;
     const body = getActiveContentPageBody();
     if (!body) return;
     captureSnapshot();
-    const block = createEmbedBlock(html, captionText);
+    const block = createEmbedBlock(html, captionText, size);
     body.appendChild(block);
     afterChange();
     ensureBlockVisible(block);
@@ -1706,9 +1737,16 @@
     const captionEl = existingBlock ? existingBlock.querySelector('.embed-caption') : null;
     const currentHtml = preview ? preview.innerHTML.trim() : '';
     const currentCaption = captionEl ? captionEl.textContent.trim() : '';
+    const currentSize = existingBlock ? getEmbedSizeFromBlock(existingBlock) : DEFAULT_EMBED_SIZE;
     openModal({
       title: existingBlock ? 'Edit embedded content' : 'Add embedded content',
       body: `
+        <label for="embed-size-select">Display size</label>
+        <select id="embed-size-select">
+          <option value="full" ${currentSize === 'full' ? 'selected' : ''}>Full width (A4)</option>
+          <option value="medium" ${currentSize === 'medium' ? 'selected' : ''}>Medium</option>
+          <option value="small" ${currentSize === 'small' ? 'selected' : ''}>Compact</option>
+        </select>
         <label for="embed-caption-input">Caption / context (optional)</label>
         <input type="text" id="embed-caption-input" placeholder="Add context for this embed…" value="${escapeHtml(currentCaption)}" />
         <label for="embed-html-input">Embed code</label>
@@ -1718,6 +1756,7 @@
       onConfirm: () => {
         const htmlInput = modalInner.querySelector('#embed-html-input');
         const captionInput = modalInner.querySelector('#embed-caption-input');
+        const sizeSelect = modalInner.querySelector('#embed-size-select');
         const rawHtml = (htmlInput.value || '').trim();
         const sanitized = sanitizeEmbedHTML(rawHtml);
         if (!sanitized) {
@@ -1725,13 +1764,14 @@
           return;
         }
         const caption = captionInput.value.trim();
+        const size = sizeSelect ? sizeSelect.value : DEFAULT_EMBED_SIZE;
         if (existingBlock) {
           captureSnapshot();
-          updateEmbedBlock(existingBlock, sanitized, caption);
+          updateEmbedBlock(existingBlock, sanitized, caption, size);
           afterChange();
           ensureBlockVisible(existingBlock);
         } else {
-          addEmbedBlock(sanitized, caption);
+          addEmbedBlock(sanitized, caption, size);
         }
         closeModal();
       }
