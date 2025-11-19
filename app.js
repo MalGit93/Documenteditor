@@ -2998,6 +2998,49 @@
     };
   }
 
+  const PDFMAKE_SOURCES = {
+    core: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js',
+    fonts: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js'
+  };
+
+  let pdfMakeReadyPromise = null;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (!src) {
+        reject(new Error('Missing script source'));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  function ensurePdfMakeLoaded() {
+    if (window.pdfMake && typeof window.pdfMake.createPdf === 'function') {
+      return Promise.resolve(window.pdfMake);
+    }
+    if (!pdfMakeReadyPromise) {
+      pdfMakeReadyPromise = loadScript(PDFMAKE_SOURCES.core)
+        .then(() => loadScript(PDFMAKE_SOURCES.fonts))
+        .then(() => {
+          if (window.pdfMake && typeof window.pdfMake.createPdf === 'function') {
+            return window.pdfMake;
+          }
+          throw new Error('pdfMake unavailable after loading');
+        })
+        .catch(err => {
+          pdfMakeReadyPromise = null;
+          throw err;
+        });
+    }
+    return pdfMakeReadyPromise;
+  }
+
   function blockToPdfNodes(block) {
     if (!block) return null;
     if (isTableBlock(block)) {
@@ -3483,26 +3526,39 @@
 
   function exportPdf() {
     const performExport = () => {
+      const ensureReady = window.pdfMake && typeof window.pdfMake.createPdf === 'function'
+        ? Promise.resolve(window.pdfMake)
+        : ensurePdfMakeLoaded().catch(err => {
+            console.error(err);
+            throw err;
+          });
+
       if (!window.pdfMake || typeof window.pdfMake.createPdf !== 'function') {
-        showSnackbar('PDF generator unavailable');
-        return;
+        showSnackbar('Loading PDF generator…');
       }
-      clearBlockSelection();
-      hideTextToolbar();
-      hideBlockActions();
-      const model = buildDocumentModel();
-      const definition = buildPdfDocumentDefinition(model);
-      if (!definition.content || !definition.content.length) {
-        showSnackbar('Nothing to export');
-        return;
-      }
-      try {
-        window.pdfMake.createPdf(definition).download('executive-brief.pdf');
-        showSnackbar('PDF exported');
-      } catch (err) {
-        console.error(err);
-        showSnackbar('PDF export failed');
-      }
+
+      ensureReady
+        .then(() => {
+          clearBlockSelection();
+          hideTextToolbar();
+          hideBlockActions();
+          const model = buildDocumentModel();
+          const definition = buildPdfDocumentDefinition(model);
+          if (!definition.content || !definition.content.length) {
+            showSnackbar('Nothing to export');
+            return;
+          }
+          try {
+            window.pdfMake.createPdf(definition).download('executive-brief.pdf');
+            showSnackbar('PDF exported');
+          } catch (err) {
+            console.error(err);
+            showSnackbar('PDF export failed');
+          }
+        })
+        .catch(() => {
+          showSnackbar('PDF generator unavailable');
+        });
     };
 
     runQualityCheck({ onContinue: performExport });
@@ -3929,7 +3985,16 @@ ${footnoteScript}
   document.getElementById('export-json').addEventListener('click', exportJSON);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   const exportPdfBtn = document.getElementById('export-pdf');
-  if (exportPdfBtn) exportPdfBtn.addEventListener('click', exportPdf);
+  const legacyPrintBtn = document.getElementById('print-btn');
+  if (exportPdfBtn) {
+    exportPdfBtn.addEventListener('click', exportPdf);
+  } else if (legacyPrintBtn) {
+    legacyPrintBtn.textContent = 'Export PDF';
+    legacyPrintBtn.setAttribute('aria-label', 'Export PDF');
+    legacyPrintBtn.title = 'Export PDF';
+    legacyPrintBtn.id = 'export-pdf';
+    legacyPrintBtn.addEventListener('click', exportPdf);
+  }
 
   jsonInput.addEventListener('change', function() {
     const file = this.files[0];
