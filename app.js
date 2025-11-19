@@ -2900,6 +2900,15 @@
     }
   }
 
+  function getEmbedFallbackLabel(block) {
+    if (!block) return 'Embedded interactive content';
+    const temp = document.createElement('div');
+    temp.innerHTML = block.html || '';
+    const caption = temp.querySelector('.embed-caption');
+    const captionText = caption ? htmlToPlainText(caption.innerHTML) : '';
+    return captionText ? `Embedded content: ${captionText}` : 'Embedded interactive content';
+  }
+
   function blockToDocxElements(block) {
     if (!block) return [];
     if (isTableBlock(block)) {
@@ -2908,11 +2917,7 @@
       return [{ type: 'table', rows }];
     }
     if (Array.isArray(block.classes) && block.classes.includes('embed-block')) {
-      const temp = document.createElement('div');
-      temp.innerHTML = block.html || '';
-      const caption = temp.querySelector('.embed-caption');
-      const captionText = caption ? htmlToPlainText(caption.innerHTML) : '';
-      const label = captionText ? `Embedded content: ${captionText}` : 'Embedded interactive content';
+      const label = getEmbedFallbackLabel(block);
       return [{ type: 'paragraph', style: 'BodyText', fragments: [{ text: `[${label}]` }] }];
     }
     const listData = extractListData(block.html);
@@ -2993,6 +2998,49 @@
     };
   }
 
+  const PDFMAKE_SOURCES = {
+    core: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js',
+    fonts: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js'
+  };
+
+  let pdfMakeReadyPromise = null;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (!src) {
+        reject(new Error('Missing script source'));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  function ensurePdfMakeLoaded() {
+    if (window.pdfMake && typeof window.pdfMake.createPdf === 'function') {
+      return Promise.resolve(window.pdfMake);
+    }
+    if (!pdfMakeReadyPromise) {
+      pdfMakeReadyPromise = loadScript(PDFMAKE_SOURCES.core)
+        .then(() => loadScript(PDFMAKE_SOURCES.fonts))
+        .then(() => {
+          if (window.pdfMake && typeof window.pdfMake.createPdf === 'function') {
+            return window.pdfMake;
+          }
+          throw new Error('pdfMake unavailable after loading');
+        })
+        .catch(err => {
+          pdfMakeReadyPromise = null;
+          throw err;
+        });
+    }
+    return pdfMakeReadyPromise;
+  }
+
   function blockToPdfNodes(block) {
     if (!block) return null;
     if (isTableBlock(block)) {
@@ -3012,6 +3060,11 @@
         margin: [0, 6, 0, 6]
       }];
     }
+    if (Array.isArray(block.classes) && block.classes.includes('embed-block')) {
+      const label = getEmbedFallbackLabel(block);
+      const fragments = [{ text: `[${label}]`, italics: true }];
+      return [pdfParagraphFromFragments(fragments, 'body')];
+    }
     const listData = extractListData(block.html);
     if (listData) {
       return [{
@@ -3024,6 +3077,77 @@
     if (!paragraphs.length) return null;
     const style = getPdfStyle(block);
     return paragraphs.map(paragraph => pdfParagraphFromFragments(paragraph, style));
+  }
+
+  function buildPdfDocumentDefinition(model) {
+    const content = [];
+    if (!model || !Array.isArray(model.pages)) {
+      return { content };
+    }
+
+    let footnotesPage = null;
+    model.pages.forEach(page => {
+      if (page.type === 'footnotes') {
+        footnotesPage = page;
+        return;
+      }
+      const blocks = Array.isArray(page.blocks) ? page.blocks : [];
+      const pageNodes = [];
+      blocks.forEach(block => {
+        const nodes = blockToPdfNodes(block);
+        if (nodes && nodes.length) {
+          pageNodes.push(...nodes);
+        }
+      });
+      if (pageNodes.length) {
+        if (content.length) {
+          content.push({ text: '', pageBreak: 'before' });
+        }
+        content.push(...pageNodes);
+      }
+    });
+
+    if (footnotesPage && Array.isArray(footnotesPage.footnotes) && footnotesPage.footnotes.length) {
+      const footnoteNodes = [];
+      footnotesPage.footnotes.forEach((item, index) => {
+        const paragraphs = htmlToParagraphFragments(item.html);
+        if (!paragraphs.length) {
+          const fragments = [{ text: `${index + 1}. ` }];
+          footnoteNodes.push(pdfParagraphFromFragments(fragments, 'body'));
+          return;
+        }
+        paragraphs.forEach((fragments, lineIndex) => {
+          const prefix = lineIndex === 0 ? `${index + 1}. ` : '   ';
+          const prefixed = [{ text: prefix }].concat(fragments.map(cloneFragment));
+          footnoteNodes.push(pdfParagraphFromFragments(prefixed, 'body'));
+        });
+      });
+      if (footnoteNodes.length) {
+        const heading = { text: 'Footnotes', style: 'heading3' };
+        if (content.length) heading.pageBreak = 'before';
+        content.push(heading, ...footnoteNodes);
+      }
+    }
+
+    return {
+      pageSize: 'A4',
+      pageMargins: [40, 60, 40, 60],
+      content,
+      styles: {
+        heading1: { fontSize: 24, bold: true, margin: [0, 12, 0, 6] },
+        heading2: { fontSize: 18, bold: true, margin: [0, 10, 0, 4] },
+        heading3: { fontSize: 14, bold: true, margin: [0, 8, 0, 4] },
+        body: { fontSize: 11, lineHeight: 1.3 }
+      },
+      defaultStyle: {
+        fontSize: 11,
+        lineHeight: 1.3
+      },
+      info: {
+        title: 'Executive Brief',
+        author: 'IGA Executive Brief Designer'
+      }
+    };
   }
 
   const DOCX_STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -3395,6 +3519,46 @@
         console.error(err);
         showSnackbar('DOCX export failed');
       }
+    };
+
+    runQualityCheck({ onContinue: performExport });
+  }
+
+  function exportPdf() {
+    const performExport = () => {
+      const ensureReady = window.pdfMake && typeof window.pdfMake.createPdf === 'function'
+        ? Promise.resolve(window.pdfMake)
+        : ensurePdfMakeLoaded().catch(err => {
+            console.error(err);
+            throw err;
+          });
+
+      if (!window.pdfMake || typeof window.pdfMake.createPdf !== 'function') {
+        showSnackbar('Loading PDF generator…');
+      }
+
+      ensureReady
+        .then(() => {
+          clearBlockSelection();
+          hideTextToolbar();
+          hideBlockActions();
+          const model = buildDocumentModel();
+          const definition = buildPdfDocumentDefinition(model);
+          if (!definition.content || !definition.content.length) {
+            showSnackbar('Nothing to export');
+            return;
+          }
+          try {
+            window.pdfMake.createPdf(definition).download('executive-brief.pdf');
+            showSnackbar('PDF exported');
+          } catch (err) {
+            console.error(err);
+            showSnackbar('PDF export failed');
+          }
+        })
+        .catch(() => {
+          showSnackbar('PDF generator unavailable');
+        });
     };
 
     runQualityCheck({ onContinue: performExport });
@@ -3820,7 +3984,17 @@ ${footnoteScript}
   if (shareBtn) shareBtn.addEventListener('click', openShareModal);
   document.getElementById('export-json').addEventListener('click', exportJSON);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
-  document.getElementById('print-btn').addEventListener('click', () => window.print());
+  const exportPdfBtn = document.getElementById('export-pdf');
+  const legacyPrintBtn = document.getElementById('print-btn');
+  if (exportPdfBtn) {
+    exportPdfBtn.addEventListener('click', exportPdf);
+  } else if (legacyPrintBtn) {
+    legacyPrintBtn.textContent = 'Export PDF';
+    legacyPrintBtn.setAttribute('aria-label', 'Export PDF');
+    legacyPrintBtn.title = 'Export PDF';
+    legacyPrintBtn.id = 'export-pdf';
+    legacyPrintBtn.addEventListener('click', exportPdf);
+  }
 
   jsonInput.addEventListener('change', function() {
     const file = this.files[0];

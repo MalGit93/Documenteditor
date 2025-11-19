@@ -14,9 +14,8 @@ python3 -m http.server 8000
 
 - **DOCX** – Uses a custom generator so you can download a Word file that mirrors the designer layout.
 - **HTML** – Creates a self-contained, read-only HTML document with inline styles and lightweight footnote navigation for sharing interactive reports without the editor chrome.
+- **PDF** – Runs the `Export PDF` toolbar action, which assembles the document model, feeds it to pdfmake, and downloads an A4 PDF that mirrors the DOCX/HTML layouts (tables, embeds, and footnotes included).
 - **JSON** – Save or load your working state for later editing.
-
-> The previous editable PDF option was removed because html-to-PDF rendering could not preserve the strict A4 layout. Use the print dialog or the standalone HTML export when a PDF is still required.
 
 ## Embedded content
 
