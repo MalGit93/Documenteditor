@@ -38,6 +38,60 @@
   let inputSnapshotTimer = null;
   let suppressSnapshots = false;
 
+  const loadedScriptPromises = new Map();
+  let docxReadyPromise = null;
+  let pdfMakeReadyPromise = null;
+
+  function loadScriptOnce(src) {
+    if (!src) return Promise.reject(new Error('Missing script source'));
+    if (loadedScriptPromises.has(src)) {
+      return loadedScriptPromises.get(src);
+    }
+    const promise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(script);
+    });
+    loadedScriptPromises.set(src, promise);
+    return promise;
+  }
+
+  function ensureDocxReady() {
+    if (window.docx) return Promise.resolve();
+    if (!docxReadyPromise) {
+      docxReadyPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/docx@8.2.3/build/index.js')
+        .catch(err => {
+          docxReadyPromise = null;
+          throw err;
+        });
+    }
+    return docxReadyPromise.then(() => {
+      if (!window.docx) {
+        throw new Error('DOCX library unavailable');
+      }
+    });
+  }
+
+  function ensurePdfMakeReady() {
+    if (window.pdfMake && window.pdfMake.createPdf) return Promise.resolve();
+    if (!pdfMakeReadyPromise) {
+      pdfMakeReadyPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/pdfmake@0.2.7/build/pdfmake.min.js')
+        .then(() => loadScriptOnce('https://cdn.jsdelivr.net/npm/pdfmake@0.2.7/build/vfs_fonts.js'))
+        .catch(err => {
+          pdfMakeReadyPromise = null;
+          throw err;
+        });
+    }
+    return pdfMakeReadyPromise.then(() => {
+      if (!window.pdfMake || !window.pdfMake.createPdf) {
+        throw new Error('PDF library unavailable');
+      }
+    });
+  }
+
   // For column resizing
   let tableResizeState = null;
 
@@ -2432,7 +2486,15 @@
         });
     };
 
-    runQualityCheck({ onContinue: performExport });
+    const attemptExport = () => {
+      const ready = window.docx ? Promise.resolve() : ensureDocxReady();
+      ready.then(performExport).catch(err => {
+        console.error(err);
+        showSnackbar('DOCX generator unavailable');
+      });
+    };
+
+    runQualityCheck({ onContinue: attemptExport });
   }
 
   function exportEditablePdf() {
@@ -2487,7 +2549,15 @@
       showSnackbar('Editable PDF exported');
     };
 
-    runQualityCheck({ onContinue: performExport });
+    const attemptExport = () => {
+      const ready = (window.pdfMake && window.pdfMake.createPdf) ? Promise.resolve() : ensurePdfMakeReady();
+      ready.then(performExport).catch(err => {
+        console.error(err);
+        showSnackbar('PDF generator unavailable');
+      });
+    };
+
+    runQualityCheck({ onContinue: attemptExport });
   }
 
   function scheduleInputSnapshot() {
