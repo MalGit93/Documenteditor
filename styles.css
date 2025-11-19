@@ -1122,6 +1122,57 @@
       outline: none;
     }
 
+    .modal-inner .share-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .modal-inner .share-section {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148,163,184,0.35);
+    }
+
+    .modal-inner .share-section h4 {
+      margin: 0 0 4px;
+      font-size: 11px;
+      color: #f8fafc;
+      font-weight: 600;
+    }
+
+    .modal-inner .copy-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .modal-inner .copy-row--end {
+      justify-content: flex-end;
+      margin-top: -2px;
+    }
+
+    .modal-inner .copy-row input {
+      margin-bottom: 0;
+    }
+
+    .modal-inner .copy-btn {
+      border-radius: 999px;
+      border: 1px solid #4b5563;
+      background: rgba(15,23,42,0.6);
+      color: #f8fafc;
+      font-size: 10px;
+      padding: 2px 10px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .modal-inner .copy-btn:hover {
+      background: rgba(249,115,22,0.25);
+      border-color: #f97316;
+    }
+
     .modal-inner .modal-helper-text {
       font-size: 10px;
       color: #94a3b8;

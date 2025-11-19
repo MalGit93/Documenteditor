@@ -1685,6 +1685,125 @@
     });
   }
 
+  function copyNodeValue(node) {
+    return new Promise((resolve, reject) => {
+      if (!node) {
+        reject(new Error('Missing target'));
+        return;
+      }
+      const value = 'value' in node ? node.value : node.textContent;
+      if (!value) {
+        reject(new Error('Nothing to copy'));
+        return;
+      }
+      const fallbackCopy = () => {
+        try {
+          const temp = document.createElement('textarea');
+          temp.value = value;
+          temp.setAttribute('readonly', 'true');
+          temp.style.position = 'fixed';
+          temp.style.left = '-9999px';
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand('copy');
+          document.body.removeChild(temp);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value).then(resolve).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    });
+  }
+
+  function deriveBaseUrl(url) {
+    if (!url) return '';
+    if (/\/$/.test(url)) return url;
+    if (/index\.html$/i.test(url)) {
+      return url.replace(/index\.html$/i, '');
+    }
+    const lastSlash = url.lastIndexOf('/');
+    if (lastSlash === -1) return url;
+    return url.slice(0, lastSlash + 1);
+  }
+
+  function openShareModal() {
+    const shareUrl = window.location.href.split('#')[0];
+    const baseUrl = deriveBaseUrl(shareUrl);
+    const chartsExample = 'charts/example.html';
+    const embedSnippet = `<iframe src="${shareUrl}" title="IGA Executive Brief Designer" loading="lazy" style="width:100%;min-height:720px;border:0;"></iframe>`;
+
+    openModal({
+      title: 'Share & embed',
+      body: `
+        <div class="share-fields">
+          <p>Publishing on GitHub Pages makes the designer and any exported HTML files public. Use these snippets to link or embed them elsewhere.</p>
+          <label for="share-direct-link">Direct link</label>
+          <div class="copy-row">
+            <input type="text" id="share-direct-link" value="${escapeHtml(shareUrl)}" readonly />
+            <button type="button" class="copy-btn" data-copy-target="#share-direct-link">Copy</button>
+          </div>
+          <label for="share-embed-snippet">Embed snippet</label>
+          <textarea id="share-embed-snippet" rows="3" readonly>${escapeHtml(embedSnippet)}</textarea>
+          <div class="copy-row copy-row--end">
+            <button type="button" class="copy-btn" data-copy-target="#share-embed-snippet">Copy embed code</button>
+          </div>
+          <div class="share-section">
+            <h4>Standalone HTML (charts, AI exports, etc.)</h4>
+            <p>Drop any extra HTML file (for example something an AI tool generated) anywhere in this repository. Once Pages publishes it you can link or embed it with the base URL below.</p>
+            <label for="share-custom-path">Relative path inside repo</label>
+            <input type="text" id="share-custom-path" value="${escapeHtml(chartsExample)}" aria-describedby="share-custom-help" />
+            <p id="share-custom-help" class="modal-helper-text">Examples: <code>charts/roi.html</code>, <code>ai/draft-dashboard.html</code></p>
+            <label for="share-custom-link">Published URL</label>
+            <div class="copy-row">
+              <input type="text" id="share-custom-link" readonly />
+              <button type="button" class="copy-btn" data-copy-target="#share-custom-link">Copy</button>
+            </div>
+            <label for="share-custom-embed">Embed snippet</label>
+            <textarea id="share-custom-embed" rows="3" readonly></textarea>
+            <div class="copy-row copy-row--end">
+              <button type="button" class="copy-btn" data-copy-target="#share-custom-embed">Copy embed code</button>
+            </div>
+          </div>
+        </div>
+      `,
+      confirmLabel: 'Close'
+    });
+
+    modalInner.querySelectorAll('[data-copy-target]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const selector = btn.dataset.copyTarget;
+        const target = selector ? modalInner.querySelector(selector) : null;
+        copyNodeValue(target)
+          .then(() => showSnackbar('Copied to clipboard'))
+          .catch(() => showSnackbar('Unable to copy'));
+      });
+    });
+
+    const customPathInput = modalInner.querySelector('#share-custom-path');
+    const customLinkInput = modalInner.querySelector('#share-custom-link');
+    const customEmbedTextarea = modalInner.querySelector('#share-custom-embed');
+    const updateCustomShareFields = () => {
+      if (!customLinkInput || !customEmbedTextarea || !customPathInput) return;
+      const rawPath = customPathInput.value.trim();
+      const sanitizedPath = rawPath.replace(/^\/+/, '');
+      const resolvedPath = sanitizedPath || '';
+      const resolvedUrl = baseUrl ? `${baseUrl}${resolvedPath}` : resolvedPath || shareUrl;
+      customLinkInput.value = resolvedUrl;
+      customEmbedTextarea.value = `<iframe src="${resolvedUrl}" title="Embedded content" loading="lazy" style="width:100%;min-height:600px;border:0;"></iframe>`;
+    };
+
+    updateCustomShareFields();
+    if (customPathInput) {
+      customPathInput.addEventListener('input', updateCustomShareFields);
+    }
+  }
+
   /* -------- Modal helpers -------- */
 
   function openModal({ title, body, onConfirm, onCancel, confirmLabel = 'OK', cancelLabel = 'Cancel' }) {
@@ -3588,6 +3707,8 @@ ${footnoteScript}
   if (exportDocxBtn) exportDocxBtn.addEventListener('click', exportDocx);
   const exportHtmlBtn = document.getElementById('export-html');
   if (exportHtmlBtn) exportHtmlBtn.addEventListener('click', exportStandaloneHtml);
+  const shareBtn = document.getElementById('share-btn');
+  if (shareBtn) shareBtn.addEventListener('click', openShareModal);
   document.getElementById('export-json').addEventListener('click', exportJSON);
   document.getElementById('import-json').addEventListener('click', () => jsonInput.click());
   document.getElementById('print-btn').addEventListener('click', () => window.print());
