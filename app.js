@@ -10,6 +10,13 @@
   const DELETE_ICON_HTML = '<span class="delete-icon" contenteditable="false" role="button" tabindex="0" aria-label="Delete block">×</span>';
   const DRAFT_STORAGE_KEY = 'igaEbdDraft';
   const AVAILABLE_THEMES = ['iga', 'ft', 'slate', 'emerald', 'noir'];
+  const THEME_LABELS = {
+    iga: 'IGA',
+    ft: 'FT-style',
+    slate: 'Slate',
+    emerald: 'Emerald',
+    noir: 'Noir'
+  };
   const THEME_CLASSES = AVAILABLE_THEMES.map(theme => `theme-${theme}`);
   const DEFAULT_THEME = AVAILABLE_THEMES[0];
   const QUALITY_PLACEHOLDERS = [
@@ -111,7 +118,47 @@
   }
 
   function normalizeTheme(theme) {
-    return AVAILABLE_THEMES.includes(theme) ? theme : DEFAULT_THEME;
+    const normalized = typeof theme === 'string'
+      ? theme.trim().toLowerCase()
+      : '';
+    return AVAILABLE_THEMES.includes(normalized) ? normalized : DEFAULT_THEME;
+  }
+
+  function ensureThemeSelectOptions() {
+    const select = document.getElementById('theme-select');
+    if (!select) return null;
+
+    const currentOptions = Array.from(select.options);
+    let needsSync = currentOptions.length !== AVAILABLE_THEMES.length;
+
+    if (!needsSync) {
+      for (let i = 0; i < AVAILABLE_THEMES.length; i++) {
+        const opt = currentOptions[i];
+        if (!opt) {
+          needsSync = true;
+          break;
+        }
+        const value = typeof opt.value === 'string' ? opt.value.trim().toLowerCase() : '';
+        if (value !== AVAILABLE_THEMES[i]) {
+          needsSync = true;
+          break;
+        }
+      }
+    }
+
+    if (needsSync) {
+      select.innerHTML = '';
+      AVAILABLE_THEMES.forEach(theme => {
+        const option = document.createElement('option');
+        option.value = theme;
+        option.textContent = THEME_LABELS[theme] || theme;
+        select.appendChild(option);
+      });
+    }
+
+    const normalizedValue = normalizeTheme(select.value);
+    select.value = normalizedValue;
+    return select;
   }
 
   function getCurrentTheme() {
@@ -122,7 +169,7 @@
     const normalized = normalizeTheme(theme);
     document.body.classList.remove(...THEME_CLASSES);
     document.body.classList.add(`theme-${normalized}`);
-    const select = document.getElementById('theme-select');
+    const select = ensureThemeSelectOptions();
     if (select) {
       select.value = normalized;
     }
@@ -3712,6 +3759,7 @@ ${footnoteScript}
   document.querySelector('[data-add-page]').addEventListener('click', addPage);
   document.querySelector('[data-add-footnote]').addEventListener('click', addFootnote);
 
+  ensureThemeSelectOptions();
   document.getElementById('theme-select').addEventListener('change', function() {
     captureSnapshot();
     setTheme(this.value);
